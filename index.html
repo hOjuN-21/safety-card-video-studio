@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&family=Noto+Sans+KR:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=2.0.0">
+  <link rel="stylesheet" href="css/styles.css?v=2.1.0">
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -55,10 +55,10 @@
           <div class="flex items-center gap-2">
             <h1 class="font-bold text-lg tracking-tight text-white flex items-center gap-2">
               안전카드뉴스 비디오 스튜디오
-              <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-gradient-to-r from-emerald-500/20 to-indigo-500/20 text-emerald-300 border border-emerald-500/30">V2 Hybrid (이미지+영상)</span>
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-gradient-to-r from-emerald-500/20 to-indigo-500/20 text-emerald-300 border border-emerald-500/30">V2.1 Audio Pro</span>
             </h1>
           </div>
-          <p class="text-xs text-slate-400">이미지와 동영상 클립을 교차 삽입하여 AI 음성 및 자막과 함께 MP4 제작</p>
+          <p class="text-xs text-slate-400">이미지와 동영상에 AI 음성과 배경음악을 직접 합성하여 고화질 MP4로 제작</p>
         </div>
       </div>
 
@@ -66,7 +66,7 @@
       <div class="flex items-center space-x-2.5">
         <button id="btn-load-sample" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 hover:border-amber-500/50 transition-all shadow-sm">
           <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
-          <span>V2 하이브리드 예시 불러오기</span>
+          <span>V2 예시 불러오기</span>
         </button>
 
         <button id="btn-save-project" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all">
@@ -128,11 +128,11 @@
         </div>
       </section>
 
-      <!-- STEP 2: VOICE (TTS) & VIDEO STYLING SETTINGS -->
+      <!-- STEP 2: VOICE (TTS) & VIDEO STYLING & CUSTOM BGM SETTINGS -->
       <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 shadow-xl backdrop-blur-sm space-y-5">
         <div class="flex items-center gap-2.5">
           <span class="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs border border-emerald-500/40">2</span>
-          <h2 class="font-bold text-slate-100 text-base">AI 음성 성우 & 영상 연출 설정</h2>
+          <h2 class="font-bold text-slate-100 text-base">AI 음성 성우 & 배경음악(BGM) 설정</h2>
         </div>
 
         <!-- Grid for Voice Settings -->
@@ -140,17 +140,20 @@
           <!-- Voice Selector -->
           <div class="space-y-1.5">
             <label class="block text-xs font-semibold text-slate-300">
-              <i data-lucide="volume-2" class="w-3.5 h-3.5 inline mr-1 text-emerald-400"></i>AI 음성 성우 선택
+              <i data-lucide="volume-2" class="w-3.5 h-3.5 inline mr-1 text-emerald-400"></i>AI 음성 성우 선택 (영상 파일 내 직접 합성)
             </label>
             <div class="flex gap-2">
               <select id="voice-select" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                <option value="ko-standard-female" selected>🇰🇷 한국어 표준 여성 아나운서 (차분한 안내)</option>
+                <option value="ko-standard-male">🇰🇷 한국어 신뢰감 있는 남성 성우 (안전 브리핑)</option>
+                <option value="ko-alert">🇰🇷 한국어 또렷하고 명확한 경고 톤</option>
               </select>
               <button id="btn-test-voice" class="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium border border-slate-700 flex items-center gap-1" title="음성 샘플 테스트">
                 <i data-lucide="play" class="w-3.5 h-3.5 text-emerald-400"></i>
                 <span>테스트</span>
               </button>
             </div>
-            <p class="text-[11px] text-slate-500">한국어 신경망 고음질 성우</p>
+            <p class="text-[11px] text-emerald-400 font-medium">✨ 비디오 파일에 음성 오디오 트랙이 100% 직접 인코딩됩니다.</p>
           </div>
 
           <!-- Speech Rate & Pitch -->
@@ -175,7 +178,7 @@
 
         <hr class="border-slate-800">
 
-        <!-- Subtitles & Visual Settings -->
+        <!-- Subtitles, Aspect Ratio & Custom BGM -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <!-- Subtitle Toggle & Style -->
           <div class="space-y-2">
@@ -208,21 +211,32 @@
             </select>
           </div>
 
-          <!-- BGM Settings -->
+          <!-- BGM Settings with Custom File Upload -->
           <div class="space-y-2">
             <div class="flex items-center justify-between">
               <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <i data-lucide="music" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <i data-lucide="music" class="w-3.5 h-3.5 text-amber-400"></i>
                 배경음악 (BGM)
               </label>
-              <span id="bgm-vol-val" class="text-[11px] text-emerald-400 font-mono">12%</span>
+              <span id="bgm-vol-val" class="text-[11px] text-amber-400 font-mono">12%</span>
             </div>
-            <select id="bgm-select" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
-              <option value="ambient_calm">차분한 안전 교육 앰비언트 (내장)</option>
-              <option value="focus_tech">정돈된 스마트 안내 BGM (내장)</option>
+            
+            <select id="bgm-select" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500">
+              <option value="ambient_calm">차분한 안전 교육 앰비언트 (기본)</option>
+              <option value="focus_tech">정돈된 스마트 안내 BGM</option>
               <option value="none">배경음악 없음 (음성만)</option>
             </select>
-            <input type="range" id="bgm-volume" min="0" max="0.3" step="0.01" value="0.12" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+
+            <!-- Custom BGM Upload Button & Info -->
+            <div class="flex items-center gap-2 pt-1">
+              <label class="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-pointer transition-all">
+                <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i>
+                <span id="bgm-upload-label">내 BGM 파일 업로드</span>
+                <input type="file" id="custom-bgm-file" accept="audio/mp3, audio/wav, audio/m4a, audio/ogg, audio/*" class="hidden">
+              </label>
+            </div>
+
+            <input type="range" id="bgm-volume" min="0" max="0.3" step="0.01" value="0.12" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
           </div>
         </div>
 
@@ -293,7 +307,7 @@
                 <i data-lucide="film" class="w-7 h-7 text-slate-600"></i>
               </div>
               <p class="text-sm font-medium text-slate-300">미디어 카드를 등록하고 대본을 입력하세요</p>
-              <p class="text-xs text-slate-500 mt-1 max-w-xs">이미지와 동영상 클립이 실시간으로 이곳에 렌더링됩니다.</p>
+              <p class="text-xs text-slate-500 mt-1 max-w-xs">음성과 BGM이 입혀진 고화질 영상이 실시간으로 이곳에 생성됩니다.</p>
             </div>
 
             <!-- Rendering Overlay -->
@@ -304,10 +318,10 @@
                   0%
                 </div>
               </div>
-              <p class="text-sm font-bold text-slate-100" id="render-stage-text">하이브리드 비디오 렌더링 중...</p>
+              <p class="text-sm font-bold text-slate-100" id="render-stage-text">하이브리드 비디오 & AI 음성 렌더링 중...</p>
               <p class="text-xs text-slate-400 mt-1" id="render-detail-text">잠시만 기다려주세요</p>
               <div class="w-full bg-slate-800 h-2 rounded-full mt-4 overflow-hidden border border-slate-700">
-                <div id="render-progress-bar" class="bg-gradient-to-r from-emerald-500 to-indigo-500 h-full w-0 transition-all duration-300"></div>
+                <div id="render-progress-bar" class="bg-gradient-to-r from-emerald-500 via-amber-400 to-indigo-500 h-full w-0 transition-all duration-300"></div>
               </div>
             </div>
           </div>
@@ -338,7 +352,7 @@
             <div class="space-y-2">
               <button id="btn-start-render" class="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 via-teal-500 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-slate-950 font-bold text-sm rounded-xl shadow-lg shadow-emerald-500/25 hover:shadow-indigo-500/40 flex items-center justify-center gap-2 transition-all transform active:scale-[0.99]">
                 <i data-lucide="clapperboard" class="w-5 h-5 stroke-[2.5]"></i>
-                <span>🎬 V2 MP4 동영상 제작하기 (Render)</span>
+                <span>🎬 MP4 동영상 제작하기 (음성+BGM 직접 인코딩)</span>
               </button>
 
               <button id="btn-download-video" class="w-full py-3 px-4 bg-slate-800 hover:bg-slate-700 text-amber-300 font-semibold text-xs rounded-xl border border-amber-500/30 hover:border-amber-500/60 shadow-md flex items-center justify-center gap-2 transition-all hidden">
@@ -353,12 +367,12 @@
         <div class="bg-gradient-to-br from-slate-900/60 to-slate-950/80 border border-slate-800/80 rounded-2xl p-4 text-xs text-slate-400 space-y-2">
           <div class="flex items-center gap-2 text-indigo-300 font-semibold">
             <i data-lucide="sparkles" class="w-4 h-4 text-indigo-400"></i>
-            <span>V2 동영상 카드 활용 안내</span>
+            <span>V2.1 오디오 & BGM 안내</span>
           </div>
           <ul class="list-disc list-inside space-y-1 text-slate-400 leading-relaxed">
-            <li><strong>이미지 + 동영상 혼합</strong>: 이미지 슬라이드 사이에 현장 시연 비디오 클립을 자유롭게 배치할 수 있습니다.</li>
-            <li><strong>원본 사운드 선택</strong>: 동영상 카드의 원본 음성을 음소거(Mute)하거나, AI 나레이션과 함께 믹싱할 수 있습니다.</li>
-            <li><strong>레이아웃 옵션</strong>: 풀스크린 전체 화면 또는 카드 템플릿 프레임 속 액자형(PiP)을 카드별로 선택 가능합니다.</li>
+            <li><strong>음성 100% 인코딩</strong>: 생성된 MP4/WebM 파일 내에 AI 음성 트랙이 영구적으로 직접 결합됩니다.</li>
+            <li><strong>커스텀 BGM 업로드</strong>: 회사 고유의 로고송이나 배경음악 MP3 파일을 업로드하여 배경음으로 믹싱할 수 있습니다.</li>
+            <li><strong>동영상 + 이미지 자유 조합</strong>: 이미지와 시연 비디오 클립을 원하는 순서대로 배치하여 원클릭 출력합니다.</li>
           </ul>
         </div>
 
@@ -374,7 +388,7 @@
       <div class="flex items-center justify-between border-b border-slate-800 pb-3">
         <h3 class="font-bold text-base text-slate-100 flex items-center gap-2">
           <i data-lucide="help-circle" class="w-5 h-5 text-emerald-400"></i>
-          V2 사용 가이드 & 신규 기능 안내
+          사용 가이드 & 오디오 설정 안내
         </h3>
         <button id="btn-close-help" class="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800">
           <i data-lucide="x" class="w-5 h-5"></i>
@@ -383,18 +397,18 @@
 
       <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
         <div class="space-y-1">
-          <h4 class="font-semibold text-emerald-400 text-sm">1. 이미지 및 동영상 클립 일괄 등록</h4>
-          <p>카드 이미지와 함께 현장 작업 영상(MP4, WebM)을 함께 업로드할 수 있습니다.</p>
+          <h4 class="font-semibold text-emerald-400 text-sm">1. 나레이션 음성 자동 합성</h4>
+          <p>각 카드에 입력된 텍스트 대본이 AI 음성으로 변환되어 동영상 파일의 오디오 트랙으로 완벽히 인코딩됩니다.</p>
         </div>
 
         <div class="space-y-1">
-          <h4 class="font-semibold text-indigo-400 text-sm">2. 동영상 카드 맞춤 설정</h4>
-          <p>동영상 카드별로 [원본 사운드 믹싱] 여부와 [풀스크린 vs 액자형 PiP] 레이아웃을 개별 지정할 수 있습니다.</p>
+          <h4 class="font-semibold text-amber-400 text-sm">2. 배경음악(BGM) 커스텀 업로드</h4>
+          <p>[내 BGM 파일 업로드] 버튼을 눌러 소장하고 계신 MP3/WAV 음원을 등록하면 전체 영상에 알맞은 볼륨으로 자동 믹싱됩니다.</p>
         </div>
 
         <div class="space-y-1">
-          <h4 class="font-semibold text-amber-400 text-sm">3. 원클릭 렌더링 & 무설치 웹 구동</h4>
-          <p>브라우저 내에서 고성능 캔버스 비디오 믹서가 이미지와 영상을 실시간 합성하여 다운로드용 MP4 파일로 변환합니다.</p>
+          <h4 class="font-semibold text-indigo-400 text-sm">3. 이미지 및 동영상 하이브리드 지원</h4>
+          <p>카드 이미지와 함께 현장 작업 비디오 클립을 교차 등록하여 풀스크린 또는 액자형(PiP)으로 연출할 수 있습니다.</p>
         </div>
       </div>
 
@@ -407,10 +421,10 @@
   </div>
 
   <!-- SCRIPTS -->
-  <script src="js/sample-data.js?v=2.0.0"></script>
-  <script src="js/tts-engine.js?v=2.0.0"></script>
-  <script src="js/video-renderer.js?v=2.0.0"></script>
-  <script src="js/app.js?v=2.0.0"></script>
+  <script src="js/sample-data.js?v=2.1.0"></script>
+  <script src="js/tts-engine.js?v=2.1.0"></script>
+  <script src="js/video-renderer.js?v=2.1.0"></script>
+  <script src="js/app.js?v=2.1.0"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();

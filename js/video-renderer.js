@@ -1,6 +1,6 @@
 /**
- * video-renderer.js (V2 Hybrid Studio)
- * HTML5 Canvas Slide, Video Clip & Subtitle Renderer + MediaRecorder Video Exporter
+ * video-renderer.js (V2.1 Audio Pro)
+ * Real Audio Track Synchronizer + HTML5 Canvas & Video Exporter
  */
 
 class VideoRenderer {
@@ -41,9 +41,6 @@ class VideoRenderer {
     this.canvas.height = height;
   }
 
-  /**
-   * Preload an image safely
-   */
   async loadImage(src) {
     return new Promise((resolve, reject) => {
       if (!src) return reject(new Error("이미지 경로가 비어 있습니다."));
@@ -57,15 +54,12 @@ class VideoRenderer {
     });
   }
 
-  /**
-   * Preload a video element safely
-   */
   async loadVideo(src) {
     return new Promise((resolve, reject) => {
       if (!src) return reject(new Error("동영상 경로가 비어 있습니다."));
       const video = document.createElement('video');
       video.playsInline = true;
-      video.muted = true; // start muted for autoplay safety
+      video.muted = true;
       video.preload = 'auto';
       if (typeof src === 'string' && (src.startsWith('http://') || src.startsWith('https://'))) {
         video.crossOrigin = 'anonymous';
@@ -79,9 +73,6 @@ class VideoRenderer {
     });
   }
 
-  /**
-   * Draw media frame (Image or Video) onto canvas
-   */
   drawCardFrame(mediaObj, cardData = {}, subtitleOptions = {}, opacity = 1.0, offsetX = 0) {
     const w = this.canvas.width;
     const h = this.canvas.height;
@@ -94,7 +85,6 @@ class VideoRenderer {
       ctx.translate(offsetX, 0);
     }
 
-    // 1. Base dark background
     ctx.fillStyle = '#090d16';
     ctx.fillRect(0, 0, w, h);
 
@@ -108,14 +98,11 @@ class VideoRenderer {
     const layout = cardData.videoLayout || 'full';
 
     if (isVideo && layout === 'pip') {
-      // 2-A. PiP (Picture in Picture Frame Layout)
       this.drawPipLayout(mediaEl, cardData, w, h, ctx);
     } else {
-      // 2-B. Full Screen Contain / Cover Layout
       this.drawFullMedia(mediaEl, w, h, ctx);
     }
 
-    // 3. Draw Subtitles if enabled
     if (subtitleOptions.enabled && cardData.script && cardData.script.trim() !== '') {
       this.drawSubtitles(cardData.script, subtitleOptions);
     }
@@ -123,9 +110,6 @@ class VideoRenderer {
     ctx.restore();
   }
 
-  /**
-   * Draw media full screen with blurred backdrop
-   */
   drawFullMedia(mediaEl, w, h, ctx) {
     try {
       const naturalW = mediaEl.videoWidth || mediaEl.width || 1;
@@ -133,13 +117,11 @@ class VideoRenderer {
       const mediaRatio = naturalW / naturalH;
       const canvasRatio = w / h;
 
-      // Backdrop blur
       ctx.save();
       ctx.filter = 'blur(24px) brightness(0.35)';
       ctx.drawImage(mediaEl, -20, -20, w + 40, h + 40);
       ctx.restore();
 
-      // Sharp foreground media
       let drawW, drawH, drawX, drawY;
       if (mediaRatio > canvasRatio) {
         drawW = w;
@@ -159,31 +141,24 @@ class VideoRenderer {
     }
   }
 
-  /**
-   * Draw PiP (Frame Inset) Card Layout
-   */
   drawPipLayout(videoEl, cardData, w, h, ctx) {
-    // Elegant frame background with subtle gradient
     const grad = ctx.createLinearGradient(0, 0, w, h);
     grad.addColorStop(0, '#0f172a');
     grad.addColorStop(1, '#1e1b4b');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 
-    // Frame border
     ctx.strokeStyle = 'rgba(99, 102, 241, 0.3)';
     ctx.lineWidth = 4;
     this.roundRect(ctx, 36, 36, w - 72, h - 72, 28);
     ctx.stroke();
 
-    // Header Title
     ctx.fillStyle = '#ffffff';
     ctx.font = `800 ${Math.round(w * 0.045)}px Pretendard, 'Noto Sans KR', sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(cardData.title || '안전 현장 시연 영상', w / 2, 70);
 
-    // Video Inset Box
     const boxMarginX = w * 0.1;
     const boxTopY = h * 0.16;
     const boxW = w * 0.8;
@@ -219,16 +194,12 @@ class VideoRenderer {
 
     ctx.restore();
 
-    // Outer border around video box
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
     ctx.lineWidth = 3;
     this.roundRect(ctx, boxMarginX, boxTopY, boxW, boxH, 20);
     ctx.stroke();
   }
 
-  /**
-   * Draw Subtitles
-   */
   drawSubtitles(text, options = {}) {
     const w = this.canvas.width;
     const h = this.canvas.height;
@@ -302,7 +273,7 @@ class VideoRenderer {
     ctx.beginPath();
     ctx.moveTo(x + radius, y);
     ctx.lineTo(x + width - radius, y);
-    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
     ctx.lineTo(x + width, y + height - radius);
     ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
     ctx.lineTo(x + radius, y + height);
@@ -330,7 +301,7 @@ class VideoRenderer {
   }
 
   /**
-   * Main Hybrid Video Render Pipeline
+   * Main Hybrid Video Render Pipeline with Direct AudioBuffer Encoding
    */
   async renderVideo(cards, settings, progressCallback) {
     if (this.isRendering) return null;
@@ -339,7 +310,7 @@ class VideoRenderer {
     try {
       this.setDimensions(settings.aspectRatio);
 
-      if (progressCallback) progressCallback(5, "미디어 리소스(이미지 & 영상) 디코딩 중...", "리소스 검증");
+      if (progressCallback) progressCallback(5, "미디어 리소스 로딩 및 AI 음성 생성 중...", "오디오 트랙 준비");
 
       // 1. Preload all media resources (Images & Videos)
       const loadedMedia = [];
@@ -354,11 +325,22 @@ class VideoRenderer {
             loadedMedia.push(imgObj);
           }
         } catch (err) {
-          throw new Error(`카드 ${i + 1}번 리소스(${card.title || '미디어'})를 불러오지 못했습니다: ${err.message}`);
+          throw new Error(`카드 ${i + 1}번 리소스를 불러오지 못했습니다: ${err.message}`);
         }
       }
 
-      // 2. Setup Audio Engine & Web Audio Destination
+      // 2. Fetch/Decode Real AudioBuffers for TTS voice narration
+      const ttsAudioBuffers = [];
+      const rate = settings.speechRate || 1.0;
+      for (let i = 0; i < cards.length; i++) {
+        if (progressCallback) {
+          progressCallback(10 + Math.round((i / cards.length) * 15), `카드 ${i + 1} AI 음성 오디오 합성 중...`, cards[i].title);
+        }
+        const audioBuf = await window.ttsEngine.getTTSAudioBuffer(cards[i].script, rate);
+        ttsAudioBuffers.push(audioBuf);
+      }
+
+      // 3. Setup Audio Engine & Web Audio Destination
       const audioCtx = window.ttsEngine.getAudioContext();
       if (audioCtx.state === 'suspended') await audioCtx.resume();
       const dest = audioCtx.createMediaStreamDestination();
@@ -371,16 +353,15 @@ class VideoRenderer {
       silenceGain.connect(dest);
       silenceOsc.start();
 
-      // Setup BGM
+      // Setup BGM (Custom or Procedural)
       let bgmNode = null;
       let totalEstimatedDuration = 0;
-
       const timeline = [];
       const pauseDuration = settings.cardPause || 0.8;
-      const rate = settings.speechRate || 1.0;
 
       cards.forEach((card, idx) => {
-        const speechDur = window.ttsEngine.estimateDuration(card.script, rate);
+        const ttsBuf = ttsAudioBuffers[idx];
+        const speechDur = ttsBuf ? ttsBuf.duration : window.ttsEngine.estimateDuration(card.script, rate);
         const mediaObj = loadedMedia[idx];
         let cardTotalDur;
 
@@ -394,6 +375,7 @@ class VideoRenderer {
           cardIndex: idx,
           card: card,
           media: mediaObj,
+          ttsAudioBuffer: ttsBuf,
           speechDuration: speechDur,
           totalDuration: cardTotalDur,
           startTime: totalEstimatedDuration,
@@ -403,17 +385,21 @@ class VideoRenderer {
       });
 
       if (settings.bgmType && settings.bgmType !== 'none') {
-        const bgmBuffer = window.ttsEngine.createProceduralBgm(settings.bgmType, Math.ceil(totalEstimatedDuration + 4));
-        bgmNode = audioCtx.createBufferSource();
-        bgmNode.buffer = bgmBuffer;
+        const bgmBuffer = window.ttsEngine.getBgmBuffer(settings.bgmType, Math.ceil(totalEstimatedDuration + 4));
+        if (bgmBuffer) {
+          bgmNode = audioCtx.createBufferSource();
+          bgmNode.buffer = bgmBuffer;
+          bgmNode.loop = true;
 
-        const gainNode = audioCtx.createGain();
-        gainNode.gain.value = settings.bgmVolume || 0.12;
-        bgmNode.connect(gainNode);
-        gainNode.connect(dest);
+          const gainNode = audioCtx.createGain();
+          gainNode.gain.value = settings.bgmVolume || 0.12;
+          bgmNode.connect(gainNode);
+          gainNode.connect(dest);
+          gainNode.connect(audioCtx.destination);
+        }
       }
 
-      // 3. Setup Canvas Capture & MediaRecorder
+      // 4. Setup Canvas Capture & MediaRecorder
       const fps = 30;
       const videoStream = this.canvas.captureStream(fps);
       const audioTracks = dest.stream.getAudioTracks();
@@ -460,7 +446,7 @@ class VideoRenderer {
         try { bgmNode.start(); } catch (e) {}
       }
 
-      // 4. Render timeline loop
+      // 5. Render timeline loop with direct AudioBuffer Voice playback
       const subtitleOpts = {
         enabled: settings.showSubtitles !== false,
         style: settings.subtitleStyle || 'bottom-bar'
@@ -474,16 +460,30 @@ class VideoRenderer {
           const nextSegment = (i + 1 < timeline.length) ? timeline[i + 1] : null;
 
           if (progressCallback) {
-            const pct = Math.round((i / timeline.length) * 85) + 10;
+            const pct = 25 + Math.round((i / timeline.length) * 70);
             const typeLabel = media.type === 'video' ? '🎬 동영상' : '🖼️ 이미지';
-            progressCallback(pct, `카드 ${i + 1}/${timeline.length} (${typeLabel}) 렌더링 중`, card.title || card.script.slice(0, 25));
+            progressCallback(pct, `카드 ${i + 1}/${timeline.length} (${typeLabel}) 비디오 & 음성 렌더링 중`, card.title || card.script.slice(0, 25));
           }
 
-          // Trigger speech in parallel
-          window.ttsEngine.speak(card.script, rate);
+          // Directly play TTS AudioBuffer into recording stream & speakers!
+          if (segment.ttsAudioBuffer) {
+            try {
+              const voiceSrc = audioCtx.createBufferSource();
+              voiceSrc.buffer = segment.ttsAudioBuffer;
+              const voiceGain = audioCtx.createGain();
+              voiceGain.gain.value = 1.0;
+              voiceSrc.connect(voiceGain);
+              voiceGain.connect(dest);
+              voiceGain.connect(audioCtx.destination);
+              voiceSrc.start(audioCtx.currentTime);
+            } catch (vErr) {
+              console.warn("TTS Buffer Play warning:", vErr);
+            }
+          }
+
           window.ttsEngine.playChime(dest);
 
-          // If media is video, start playback
+          // If media is video, start video playback
           if (media.type === 'video') {
             try {
               media.element.currentTime = 0;
@@ -501,7 +501,6 @@ class VideoRenderer {
             const elapsed = performance.now() - segmentStartTime;
             const remaining = targetDurationMs - elapsed;
 
-            // Loop video if reached end during segment
             if (media.type === 'video' && media.element.ended) {
               media.element.currentTime = 0;
               media.element.play().catch(() => {});
@@ -523,15 +522,13 @@ class VideoRenderer {
             await new Promise(r => setTimeout(r, 33));
           }
 
-          // Pause video after segment
           if (media.type === 'video') {
             media.element.pause();
           }
         }
 
-        if (progressCallback) progressCallback(96, "V2 하이브리드 비디오 완성 중...", "동영상 패키징");
+        if (progressCallback) progressCallback(98, "동영상 파일 패키징 중...", "음성 및 배경음악 결합 완료");
 
-        window.ttsEngine.stop();
         if (bgmNode) {
           try { bgmNode.stop(); } catch (e) {}
         }
@@ -548,8 +545,7 @@ class VideoRenderer {
 
     } catch (err) {
       this.isRendering = false;
-      window.ttsEngine.stop();
-      console.error("V2 Video Render Error:", err);
+      console.error("V2.1 Video Render Error:", err);
       throw err;
     }
   }

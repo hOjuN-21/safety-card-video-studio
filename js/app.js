@@ -1,6 +1,6 @@
 /**
- * app.js (V2 Hybrid Studio)
- * Main UI Controller for Image & Video Hybrid Card News
+ * app.js (V2.1 Audio Pro)
+ * Main UI Controller with Custom BGM Upload & Direct Audio Encoding
  */
 
 class SafetyCardApp {
@@ -41,6 +41,8 @@ class SafetyCardApp {
     this.bgmSelect = document.getElementById('bgm-select');
     this.bgmVolumeInput = document.getElementById('bgm-volume');
     this.bgmVolVal = document.getElementById('bgm-vol-val');
+    this.customBgmFileInput = document.getElementById('custom-bgm-file');
+    this.bgmUploadLabel = document.getElementById('bgm-upload-label');
     this.videoLayoutDefault = document.getElementById('video-layout-default');
 
     this.previewCanvas = document.getElementById('preview-canvas');
@@ -122,12 +124,34 @@ class SafetyCardApp {
       this.bgmVolVal.textContent = `${pct}%`;
     });
 
-    this.voiceSelect.addEventListener('change', (e) => {
-      window.ttsEngine.setVoiceByName(e.target.value);
+    // Custom BGM file upload handler
+    this.customBgmFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        try {
+          this.bgmUploadLabel.textContent = "BGM 로딩 중...";
+          await window.ttsEngine.loadCustomBgm(file);
+          this.bgmUploadLabel.textContent = `🎵 ${file.name.slice(0, 14)}...`;
+
+          let customOpt = Array.from(this.bgmSelect.options).find(o => o.value === 'custom');
+          if (!customOpt) {
+            customOpt = document.createElement('option');
+            customOpt.value = 'custom';
+            this.bgmSelect.insertBefore(customOpt, this.bgmSelect.firstChild);
+          }
+          customOpt.textContent = `🎵 사용자 BGM: ${file.name.slice(0, 16)}`;
+          customOpt.selected = true;
+
+          alert(`배경음악이 성공적으로 등록되었습니다: ${file.name}`);
+        } catch (err) {
+          alert("배경음악 파일을 로드하는 데 실패했습니다: " + err.message);
+          this.bgmUploadLabel.textContent = "내 BGM 파일 업로드";
+        }
+      }
     });
 
     this.btnTestVoice.addEventListener('click', () => {
-      window.ttsEngine.speak('안전카드뉴스 V2 음성 합성을 테스트합니다. 오늘도 안전한 하루 되십시오.', parseFloat(this.speechRateInput.value));
+      window.ttsEngine.speak('안전카드뉴스 음성 합성을 테스트합니다. 오늘도 안전한 하루 되십시오.', parseFloat(this.speechRateInput.value));
     });
 
     this.aspectRatioSelect.addEventListener('change', () => {
@@ -166,7 +190,7 @@ class SafetyCardApp {
       a.href = this.videoRenderer.currentUrl;
       const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
       const ext = this.videoRenderer.lastExtension || 'mp4';
-      a.download = `안전카드뉴스_V2동영상_${today}.${ext}`;
+      a.download = `안전카드뉴스_동영상_${today}.${ext}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -190,9 +214,6 @@ class SafetyCardApp {
     this.videoRenderer.setDimensions(ratio);
   }
 
-  /**
-   * Handle uploaded Image & Video files
-   */
   async handleFiles(files) {
     if (!files || files.length === 0) return;
 
@@ -253,9 +274,7 @@ class SafetyCardApp {
         ctx.drawImage(video, 0, 0, 320, 320);
         resolve(canvas.toDataURL('image/jpeg', 0.8));
       };
-      video.onerror = () => {
-        resolve('');
-      };
+      video.onerror = () => resolve('');
     });
   }
 
@@ -268,9 +287,6 @@ class SafetyCardApp {
     });
   }
 
-  /**
-   * Load V2 Sample Template with Images and Animated Motion Videos
-   */
   async loadSampleTemplate(key = 'hybridStudio') {
     const tpl = SampleSafetyTemplates[key] || SampleSafetyTemplates.hybridStudio;
     this.cards = [];
@@ -343,7 +359,6 @@ class SafetyCardApp {
       html += `
         <div class="card-item bg-slate-950/70 border ${isSelected ? 'border-emerald-500 shadow-md shadow-emerald-500/10' : 'border-slate-800'} rounded-xl p-3.5 flex flex-col sm:flex-row gap-3.5 items-start sm:items-center relative group" data-id="${card.id}" data-index="${index}">
           
-          <!-- Drag Handle & Thumb -->
           <div class="flex items-center gap-2">
             <span class="w-6 h-6 rounded-lg bg-slate-800 text-slate-300 font-mono font-bold text-xs flex items-center justify-center border border-slate-700">
               ${index + 1}
@@ -358,7 +373,6 @@ class SafetyCardApp {
             </div>
           </div>
 
-          <!-- Script & Controls -->
           <div class="flex-1 w-full space-y-1.5">
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-2 flex-1">
@@ -375,7 +389,6 @@ class SafetyCardApp {
               </div>
             </div>
 
-            <!-- Video specific option row -->
             ${isVideo ? `
               <div class="flex items-center gap-3 text-[11px] text-slate-400 bg-slate-900/90 px-2 py-1 rounded-lg border border-slate-800">
                 <span class="text-indigo-400 font-medium">영상 연출:</span>
@@ -394,7 +407,6 @@ class SafetyCardApp {
             </div>
           </div>
 
-          <!-- Action Buttons -->
           <div class="flex sm:flex-col items-center gap-1 sm:self-center">
             <button class="btn-play-card p-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 rounded-lg border border-slate-700 transition-all" title="이 카드 음성 미리듣기" data-index="${index}">
               <i data-lucide="volume-2" class="w-4 h-4"></i>
@@ -625,7 +637,7 @@ class SafetyCardApp {
         try { msg = JSON.stringify(err); } catch(e) { msg = String(err); }
       }
 
-      console.error("V2 렌더링 에러:", err);
+      console.error("렌더링 에러:", err);
       alert("동영상 제작 중 오류가 발생했습니다:\n" + msg);
     } finally {
       this.isRendering = false;
@@ -634,7 +646,7 @@ class SafetyCardApp {
 
   saveProject() {
     const data = {
-      version: "2.0",
+      version: "2.1",
       createdAt: new Date().toISOString(),
       cards: this.cards,
       settings: {
@@ -689,7 +701,7 @@ class SafetyCardApp {
           this.renderCardsList();
           this.updateCanvasAspect();
           this.updatePreviewCanvas();
-          alert("V2 프로젝트를 성공적으로 불러왔습니다!");
+          alert("프로젝트를 성공적으로 불러왔습니다!");
         }
       } catch (err) {
         alert("프로젝트 파일 형식이 올바르지 않습니다.");
