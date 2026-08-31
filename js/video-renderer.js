@@ -1,6 +1,6 @@
 /**
- * video-renderer.js
- * Robust HTML5 Canvas Slide & Subtitle Renderer + MediaRecorder Video Exporter
+ * video-renderer.js (V2 Hybrid Studio)
+ * HTML5 Canvas Slide, Video Clip & Subtitle Renderer + MediaRecorder Video Exporter
  */
 
 class VideoRenderer {
@@ -42,30 +42,47 @@ class VideoRenderer {
   }
 
   /**
-   * Preload an image from URL or dataURL safely without tainting canvas
+   * Preload an image safely
    */
   async loadImage(src) {
     return new Promise((resolve, reject) => {
-      if (!src) {
-        return reject(new Error("이미지 경로가 비어 있습니다."));
-      }
-
+      if (!src) return reject(new Error("이미지 경로가 비어 있습니다."));
       const img = new Image();
-      // ONLY set crossOrigin on external HTTP/HTTPS URLs
       if (typeof src === 'string' && (src.startsWith('http://') || src.startsWith('https://'))) {
         img.crossOrigin = 'anonymous';
       }
-
-      img.onload = () => resolve(img);
+      img.onload = () => resolve({ type: 'image', element: img });
       img.onerror = () => reject(new Error("카드 이미지를 불러오는 데 실패했습니다."));
       img.src = src;
     });
   }
 
   /**
-   * Draw a card frame onto canvas
+   * Preload a video element safely
    */
-  drawCardFrame(img, subtitleText, subtitleOptions = {}, opacity = 1.0, offsetX = 0) {
+  async loadVideo(src) {
+    return new Promise((resolve, reject) => {
+      if (!src) return reject(new Error("동영상 경로가 비어 있습니다."));
+      const video = document.createElement('video');
+      video.playsInline = true;
+      video.muted = true; // start muted for autoplay safety
+      video.preload = 'auto';
+      if (typeof src === 'string' && (src.startsWith('http://') || src.startsWith('https://'))) {
+        video.crossOrigin = 'anonymous';
+      }
+
+      video.onloadeddata = () => {
+        resolve({ type: 'video', element: video, duration: video.duration || 3.0 });
+      };
+      video.onerror = () => reject(new Error("동영상 클립을 불러오는 데 실패했습니다."));
+      video.src = src;
+    });
+  }
+
+  /**
+   * Draw media frame (Image or Video) onto canvas
+   */
+  drawCardFrame(mediaObj, cardData = {}, subtitleOptions = {}, opacity = 1.0, offsetX = 0) {
     const w = this.canvas.width;
     const h = this.canvas.height;
     const ctx = this.ctx;
@@ -81,48 +98,136 @@ class VideoRenderer {
     ctx.fillStyle = '#090d16';
     ctx.fillRect(0, 0, w, h);
 
-    // 2. Draw Image (Contain with letterbox or subtle blur backdrop)
-    if (img) {
-      try {
-        // Blurred backdrop
-        ctx.save();
-        ctx.filter = 'blur(24px) brightness(0.35)';
-        ctx.drawImage(img, -20, -20, w + 40, h + 40);
-        ctx.restore();
+    if (!mediaObj) {
+      ctx.restore();
+      return;
+    }
 
-        // Sharp main image centered
-        const imgRatio = (img.width || 1) / (img.height || 1);
-        const canvasRatio = w / h;
-        let drawW, drawH, drawX, drawY;
+    const isVideo = (mediaObj.type === 'video');
+    const mediaEl = mediaObj.element;
+    const layout = cardData.videoLayout || 'full';
 
-        if (imgRatio > canvasRatio) {
-          drawW = w;
-          drawH = w / imgRatio;
-          drawX = 0;
-          drawY = (h - drawH) / 2;
-        } else {
-          drawH = h;
-          drawW = h * imgRatio;
-          drawX = (w - drawW) / 2;
-          drawY = 0;
-        }
-
-        ctx.drawImage(img, drawX, drawY, drawW, drawH);
-      } catch (err) {
-        console.warn("Frame draw image warning:", err);
-      }
+    if (isVideo && layout === 'pip') {
+      // 2-A. PiP (Picture in Picture Frame Layout)
+      this.drawPipLayout(mediaEl, cardData, w, h, ctx);
+    } else {
+      // 2-B. Full Screen Contain / Cover Layout
+      this.drawFullMedia(mediaEl, w, h, ctx);
     }
 
     // 3. Draw Subtitles if enabled
-    if (subtitleOptions.enabled && subtitleText && subtitleText.trim() !== '') {
-      this.drawSubtitles(subtitleText, subtitleOptions);
+    if (subtitleOptions.enabled && cardData.script && cardData.script.trim() !== '') {
+      this.drawSubtitles(cardData.script, subtitleOptions);
     }
 
     ctx.restore();
   }
 
   /**
-   * Draw styled Korean Subtitles with automatic line wrapping
+   * Draw media full screen with blurred backdrop
+   */
+  drawFullMedia(mediaEl, w, h, ctx) {
+    try {
+      const naturalW = mediaEl.videoWidth || mediaEl.width || 1;
+      const naturalH = mediaEl.videoHeight || mediaEl.height || 1;
+      const mediaRatio = naturalW / naturalH;
+      const canvasRatio = w / h;
+
+      // Backdrop blur
+      ctx.save();
+      ctx.filter = 'blur(24px) brightness(0.35)';
+      ctx.drawImage(mediaEl, -20, -20, w + 40, h + 40);
+      ctx.restore();
+
+      // Sharp foreground media
+      let drawW, drawH, drawX, drawY;
+      if (mediaRatio > canvasRatio) {
+        drawW = w;
+        drawH = w / mediaRatio;
+        drawX = 0;
+        drawY = (h - drawH) / 2;
+      } else {
+        drawH = h;
+        drawW = h * mediaRatio;
+        drawX = (w - drawW) / 2;
+        drawY = 0;
+      }
+
+      ctx.drawImage(mediaEl, drawX, drawY, drawW, drawH);
+    } catch (e) {
+      console.warn("Draw full media warning:", e);
+    }
+  }
+
+  /**
+   * Draw PiP (Frame Inset) Card Layout
+   */
+  drawPipLayout(videoEl, cardData, w, h, ctx) {
+    // Elegant frame background with subtle gradient
+    const grad = ctx.createLinearGradient(0, 0, w, h);
+    grad.addColorStop(0, '#0f172a');
+    grad.addColorStop(1, '#1e1b4b');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    // Frame border
+    ctx.strokeStyle = 'rgba(99, 102, 241, 0.3)';
+    ctx.lineWidth = 4;
+    this.roundRect(ctx, 36, 36, w - 72, h - 72, 28);
+    ctx.stroke();
+
+    // Header Title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `800 ${Math.round(w * 0.045)}px Pretendard, 'Noto Sans KR', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(cardData.title || '안전 현장 시연 영상', w / 2, 70);
+
+    // Video Inset Box
+    const boxMarginX = w * 0.1;
+    const boxTopY = h * 0.16;
+    const boxW = w * 0.8;
+    const boxH = h * 0.58;
+
+    ctx.save();
+    this.roundRect(ctx, boxMarginX, boxTopY, boxW, boxH, 20);
+    ctx.clip();
+
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(boxMarginX, boxTopY, boxW, boxH);
+
+    try {
+      const vW = videoEl.videoWidth || 1;
+      const vH = videoEl.videoHeight || 1;
+      const vRatio = vW / vH;
+      const bRatio = boxW / boxH;
+      let dW, dH, dX, dY;
+
+      if (vRatio > bRatio) {
+        dW = boxW;
+        dH = boxW / vRatio;
+        dX = boxMarginX;
+        dY = boxTopY + (boxH - dH) / 2;
+      } else {
+        dH = boxH;
+        dW = boxH * vRatio;
+        dX = boxMarginX + (boxW - dW) / 2;
+        dY = boxTopY;
+      }
+      ctx.drawImage(videoEl, dX, dY, dW, dH);
+    } catch (e) {}
+
+    ctx.restore();
+
+    // Outer border around video box
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 3;
+    this.roundRect(ctx, boxMarginX, boxTopY, boxW, boxH, 20);
+    ctx.stroke();
+  }
+
+  /**
+   * Draw Subtitles
    */
   drawSubtitles(text, options = {}) {
     const w = this.canvas.width;
@@ -130,7 +235,7 @@ class VideoRenderer {
     const ctx = this.ctx;
     const style = options.style || 'bottom-bar';
 
-    const fontSize = Math.round(w * 0.038); // Responsive font size
+    const fontSize = Math.round(w * 0.038);
     const lineHeight = fontSize * 1.45;
     ctx.font = `700 ${fontSize}px Pretendard, 'Noto Sans KR', sans-serif`;
     ctx.textAlign = 'center';
@@ -140,41 +245,33 @@ class VideoRenderer {
     const lines = this.wrapKoreanText(text, maxTextWidth, ctx);
     const totalBoxHeight = lines.length * lineHeight + fontSize * 1.2;
 
-    let boxY = h - totalBoxHeight - (h * 0.05); // 5% from bottom
-
-    if (style === 'top-bar') {
-      boxY = h * 0.05;
-    }
+    let boxY = h - totalBoxHeight - (h * 0.05);
+    if (style === 'top-bar') boxY = h * 0.05;
 
     if (style === 'bottom-bar' || style === 'top-bar') {
-      // Semi-transparent bar
-      ctx.fillStyle = 'rgba(10, 15, 29, 0.84)';
+      ctx.fillStyle = 'rgba(10, 15, 29, 0.86)';
       ctx.fillRect(w * 0.05, boxY, w * 0.9, totalBoxHeight);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
       ctx.lineWidth = 2;
       ctx.strokeRect(w * 0.05, boxY, w * 0.9, totalBoxHeight);
     } else if (style === 'floating-pill') {
       this.roundRect(ctx, w * 0.08, boxY, w * 0.84, totalBoxHeight, 20);
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(34, 197, 94, 0.6)';
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.7)';
       ctx.lineWidth = 3;
       ctx.stroke();
     }
 
     lines.forEach((line, idx) => {
       const lineY = boxY + (fontSize * 0.9) + (idx * lineHeight) + (fontSize * 0.2);
-
       if (style === 'text-shadow') {
         ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
         ctx.shadowBlur = 12;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 3;
         ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
         ctx.lineWidth = 6;
         ctx.strokeText(line, w / 2, lineY);
       }
-
       ctx.fillStyle = '#ffffff';
       ctx.fillText(line, w / 2, lineY);
     });
@@ -197,9 +294,7 @@ class VideoRenderer {
         currentLine = testLine;
       }
     }
-    if (currentLine) {
-      lines.push(currentLine);
-    }
+    if (currentLine) lines.push(currentLine);
     return lines;
   }
 
@@ -217,9 +312,6 @@ class VideoRenderer {
     ctx.closePath();
   }
 
-  /**
-   * Determine best supported MediaRecorder MIME type
-   */
   getBestMimeType() {
     const types = [
       'video/webm;codecs=vp9,opus',
@@ -229,13 +321,8 @@ class VideoRenderer {
       'video/mp4;codecs=avc1,mp4a',
       'video/mp4'
     ];
-
-    if (typeof MediaRecorder === 'undefined') {
-      throw new Error("현재 브라우저는 MediaRecorder API를 지원하지 않습니다. Chrome 또는 Edge 브라우저를 권장합니다.");
-    }
-
     for (const t of types) {
-      if (MediaRecorder.isTypeSupported(t)) {
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) {
         return t;
       }
     }
@@ -243,7 +330,7 @@ class VideoRenderer {
   }
 
   /**
-   * Main Video Render Pipeline
+   * Main Hybrid Video Render Pipeline
    */
   async renderVideo(cards, settings, progressCallback) {
     if (this.isRendering) return null;
@@ -252,32 +339,34 @@ class VideoRenderer {
     try {
       this.setDimensions(settings.aspectRatio);
 
-      if (progressCallback) progressCallback(5, "카드 이미지 리소스 로딩 중...", "이미지 유효성 검사");
+      if (progressCallback) progressCallback(5, "미디어 리소스(이미지 & 영상) 디코딩 중...", "리소스 검증");
 
-      // 1. Preload all card images
-      const loadedImages = [];
+      // 1. Preload all media resources (Images & Videos)
+      const loadedMedia = [];
       for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
         try {
-          const img = await this.loadImage(cards[i].imageUrl);
-          loadedImages.push(img);
-        } catch (imgErr) {
-          console.error(`카드 ${i + 1} 이미지 로드 실패:`, imgErr);
-          throw new Error(`카드 ${i + 1}번 이미지를 로드할 수 없습니다: ${cards[i].title || '이미지 오류'}`);
+          if (card.mediaType === 'video') {
+            const videoObj = await this.loadVideo(card.mediaUrl || card.imageUrl);
+            loadedMedia.push(videoObj);
+          } else {
+            const imgObj = await this.loadImage(card.mediaUrl || card.imageUrl);
+            loadedMedia.push(imgObj);
+          }
+        } catch (err) {
+          throw new Error(`카드 ${i + 1}번 리소스(${card.title || '미디어'})를 불러오지 못했습니다: ${err.message}`);
         }
       }
 
       // 2. Setup Audio Engine & Web Audio Destination
       const audioCtx = window.ttsEngine.getAudioContext();
-      if (audioCtx.state === 'suspended') {
-        await audioCtx.resume();
-      }
-
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
       const dest = audioCtx.createMediaStreamDestination();
 
-      // Keep audio stream active with continuous silence carrier node
+      // Silent carrier oscillator to keep stream alive
       const silenceOsc = audioCtx.createOscillator();
       const silenceGain = audioCtx.createGain();
-      silenceGain.gain.value = 0.0001; // virtually silent carrier
+      silenceGain.gain.value = 0.0001;
       silenceOsc.connect(silenceGain);
       silenceGain.connect(dest);
       silenceOsc.start();
@@ -292,11 +381,19 @@ class VideoRenderer {
 
       cards.forEach((card, idx) => {
         const speechDur = window.ttsEngine.estimateDuration(card.script, rate);
-        const cardTotalDur = speechDur + pauseDuration;
+        const mediaObj = loadedMedia[idx];
+        let cardTotalDur;
+
+        if (mediaObj.type === 'video' && card.syncMode === 'video_length' && mediaObj.duration) {
+          cardTotalDur = Math.max(mediaObj.duration, speechDur) + pauseDuration;
+        } else {
+          cardTotalDur = speechDur + pauseDuration;
+        }
+
         timeline.push({
           cardIndex: idx,
           card: card,
-          image: loadedImages[idx],
+          media: mediaObj,
           speechDuration: speechDur,
           totalDuration: cardTotalDur,
           startTime: totalEstimatedDuration,
@@ -316,43 +413,28 @@ class VideoRenderer {
         gainNode.connect(dest);
       }
 
-      // 3. Setup Canvas Capture Stream & MediaRecorder
+      // 3. Setup Canvas Capture & MediaRecorder
       const fps = 30;
-      let videoStream;
-      try {
-        videoStream = this.canvas.captureStream(fps);
-      } catch (streamErr) {
-        throw new Error("캔버스 화면 캡처에 실패했습니다 (CORS 보안 제약): " + streamErr.message);
-      }
-
+      const videoStream = this.canvas.captureStream(fps);
       const audioTracks = dest.stream.getAudioTracks();
       const tracks = [...videoStream.getVideoTracks()];
-      if (audioTracks.length > 0) {
-        tracks.push(audioTracks[0]);
-      }
+      if (audioTracks.length > 0) tracks.push(audioTracks[0]);
 
       const combinedStream = new MediaStream(tracks);
-
-      // Safe MediaRecorder Initialization with MIME fallback
       const chosenMime = this.getBestMimeType();
       const recordedChunks = [];
       let recorder;
 
-      const recorderOptions = chosenMime ? { mimeType: chosenMime, videoBitsPerSecond: 5000000 } : {};
-
       try {
-        recorder = new MediaRecorder(combinedStream, recorderOptions);
-      } catch (recInitErr) {
-        console.warn("Preferred mimeType failed, falling back to default:", recInitErr);
+        recorder = new MediaRecorder(combinedStream, chosenMime ? { mimeType: chosenMime, videoBitsPerSecond: 6000000 } : {});
+      } catch (e) {
         recorder = new MediaRecorder(combinedStream);
       }
 
       const actualMime = recorder.mimeType || chosenMime || 'video/webm';
 
       recorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          recordedChunks.push(e.data);
-        }
+        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
       };
 
       const renderPromise = new Promise((resolve, reject) => {
@@ -366,18 +448,13 @@ class VideoRenderer {
             this.currentUrl = URL.createObjectURL(blob);
             this.lastExtension = extension;
             resolve({ blob, url: this.currentUrl, extension });
-          } catch (blobErr) {
-            reject(new Error("동영상 파일 변환 실패: " + blobErr.message));
+          } catch (err) {
+            reject(new Error("동영상 생성 실패: " + err.message));
           }
         };
-
-        recorder.onerror = (e) => {
-          const errObj = e.error || new Error(e.message || "동영상 녹화 장치(MediaRecorder) 오류가 발생했습니다.");
-          reject(errObj);
-        };
+        recorder.onerror = (e) => reject(e.error || new Error(e.message || "녹화 장치 에러"));
       });
 
-      // Start Recording
       recorder.start(100);
       if (bgmNode) {
         try { bgmNode.start(); } catch (e) {}
@@ -393,20 +470,29 @@ class VideoRenderer {
         for (let i = 0; i < timeline.length; i++) {
           const segment = timeline[i];
           const card = segment.card;
+          const media = segment.media;
           const nextSegment = (i + 1 < timeline.length) ? timeline[i + 1] : null;
 
           if (progressCallback) {
             const pct = Math.round((i / timeline.length) * 85) + 10;
-            progressCallback(pct, `카드 ${i + 1}/${timeline.length} 렌더링 중`, card.title || card.script.slice(0, 25));
+            const typeLabel = media.type === 'video' ? '🎬 동영상' : '🖼️ 이미지';
+            progressCallback(pct, `카드 ${i + 1}/${timeline.length} (${typeLabel}) 렌더링 중`, card.title || card.script.slice(0, 25));
           }
 
-          // Trigger speech preview concurrently
+          // Trigger speech in parallel
           window.ttsEngine.speak(card.script, rate);
-
-          // Play transition chime tone on card change
           window.ttsEngine.playChime(dest);
 
-          // Frame animation loop
+          // If media is video, start playback
+          if (media.type === 'video') {
+            try {
+              media.element.currentTime = 0;
+              await media.element.play();
+            } catch (e) {
+              console.warn("Video play warning:", e);
+            }
+          }
+
           const segmentStartTime = performance.now();
           const targetDurationMs = segment.totalDuration * 1000;
           const transitionDurMs = settings.transitionStyle === 'cut' ? 0 : 400;
@@ -415,24 +501,35 @@ class VideoRenderer {
             const elapsed = performance.now() - segmentStartTime;
             const remaining = targetDurationMs - elapsed;
 
+            // Loop video if reached end during segment
+            if (media.type === 'video' && media.element.ended) {
+              media.element.currentTime = 0;
+              media.element.play().catch(() => {});
+            }
+
             if (remaining < transitionDurMs && nextSegment && settings.transitionStyle === 'fade') {
               const t = 1.0 - (remaining / transitionDurMs);
-              this.drawCardFrame(segment.image, card.script, subtitleOpts, 1.0);
-              this.drawCardFrame(nextSegment.image, nextSegment.card.script, subtitleOpts, t);
+              this.drawCardFrame(media, card, subtitleOpts, 1.0);
+              this.drawCardFrame(nextSegment.media, nextSegment.card, subtitleOpts, t);
             } else if (remaining < transitionDurMs && nextSegment && settings.transitionStyle === 'slide') {
               const t = 1.0 - (remaining / transitionDurMs);
               const offset = -t * this.canvas.width;
-              this.drawCardFrame(segment.image, card.script, subtitleOpts, 1.0, offset);
-              this.drawCardFrame(nextSegment.image, nextSegment.card.script, subtitleOpts, 1.0, offset + this.canvas.width);
+              this.drawCardFrame(media, card, subtitleOpts, 1.0, offset);
+              this.drawCardFrame(nextSegment.media, nextSegment.card, subtitleOpts, 1.0, offset + this.canvas.width);
             } else {
-              this.drawCardFrame(segment.image, card.script, subtitleOpts, 1.0);
+              this.drawCardFrame(media, card, subtitleOpts, 1.0);
             }
 
             await new Promise(r => setTimeout(r, 33));
           }
+
+          // Pause video after segment
+          if (media.type === 'video') {
+            media.element.pause();
+          }
         }
 
-        if (progressCallback) progressCallback(96, "동영상 파일 패키징 중...", "고화질 비디오 완성");
+        if (progressCallback) progressCallback(96, "V2 하이브리드 비디오 완성 중...", "동영상 패키징");
 
         window.ttsEngine.stop();
         if (bgmNode) {
@@ -452,7 +549,7 @@ class VideoRenderer {
     } catch (err) {
       this.isRendering = false;
       window.ttsEngine.stop();
-      console.error("Video Render Error:", err);
+      console.error("V2 Video Render Error:", err);
       throw err;
     }
   }

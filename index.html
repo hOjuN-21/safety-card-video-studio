@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>안전카드뉴스 비디오 메이커 | Safety Card-to-Video</title>
+  <title>안전카드뉴스 비디오 스튜디오 V2 | Image & Video Hybrid Studio</title>
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&family=Noto+Sans+KR:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=2.0.0">
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -34,6 +34,7 @@
               orange: '#f97316',
               red: '#ef4444',
               blue: '#3b82f6',
+              purple: '#a855f7',
             }
           }
         }
@@ -47,17 +48,17 @@
   <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
       <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-amber-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-          <i data-lucide="shield-alert" class="w-6 h-6 text-slate-950 stroke-[2.5]"></i>
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <i data-lucide="video" class="w-6 h-6 text-slate-950 stroke-[2.5]"></i>
         </div>
         <div>
           <div class="flex items-center gap-2">
             <h1 class="font-bold text-lg tracking-tight text-white flex items-center gap-2">
-              안전카드뉴스 비디오 메이커
-              <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Web & GitHub Edition</span>
+              안전카드뉴스 비디오 스튜디오
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-gradient-to-r from-emerald-500/20 to-indigo-500/20 text-emerald-300 border border-emerald-500/30">V2 Hybrid (이미지+영상)</span>
             </h1>
           </div>
-          <p class="text-xs text-slate-400">이미지 카드에 AI 음성과 자막을 입혀 원클릭으로 MP4 동영상 제작</p>
+          <p class="text-xs text-slate-400">이미지와 동영상 클립을 교차 삽입하여 AI 음성 및 자막과 함께 MP4 제작</p>
         </div>
       </div>
 
@@ -65,7 +66,7 @@
       <div class="flex items-center space-x-2.5">
         <button id="btn-load-sample" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 hover:border-amber-500/50 transition-all shadow-sm">
           <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
-          <span>안전 템플릿 예시 불러오기</span>
+          <span>V2 하이브리드 예시 불러오기</span>
         </button>
 
         <button id="btn-save-project" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all">
@@ -97,7 +98,7 @@
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-2.5">
             <span class="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs border border-emerald-500/40">1</span>
-            <h2 class="font-bold text-slate-100 text-base">카드 뉴스 이미지 & 대본 등록</h2>
+            <h2 class="font-bold text-slate-100 text-base">미디어 카드 (이미지 & 동영상) 등록</h2>
           </div>
           <div class="flex items-center gap-2">
             <span id="card-count-badge" class="text-xs bg-slate-800 text-slate-300 px-2.5 py-1 rounded-full border border-slate-700">총 0장</span>
@@ -107,23 +108,22 @@
 
         <!-- Upload Drag & Drop Area -->
         <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-emerald-500/60 rounded-xl p-6 text-center transition-all bg-slate-950/40 cursor-pointer group">
-          <input type="file" id="file-input" multiple accept="image/png, image/jpeg, image/webp" class="hidden">
+          <input type="file" id="file-input" multiple accept="image/png, image/jpeg, image/webp, video/mp4, video/webm, video/quicktime" class="hidden">
           <div class="flex flex-col items-center justify-center space-y-2.5">
             <div class="w-12 h-12 rounded-full bg-slate-800 group-hover:bg-emerald-500/10 group-hover:scale-110 flex items-center justify-center text-slate-400 group-hover:text-emerald-400 transition-all">
-              <i data-lucide="image-plus" class="w-6 h-6"></i>
+              <i data-lucide="clapperboard" class="w-6 h-6"></i>
             </div>
             <div class="text-sm font-medium text-slate-200">
-              안전카드 뉴스 이미지를 드래그하여 놓거나 <span class="text-emerald-400 underline underline-offset-4 font-semibold">클릭하여 선택</span>
+              안전 카드 <span class="text-emerald-400 font-semibold">이미지</span> 또는 현장 <span class="text-indigo-400 font-semibold">동영상 클립</span>을 드래그하여 등록
             </div>
-            <p class="text-xs text-slate-400">PNG, JPG, WebP 지원 (다중 파일 일괄 등록 가능, 권장 해상도 1080×1080 또는 1080×1350)</p>
+            <p class="text-xs text-slate-400">PNG, JPG, WebP 및 MP4, WebM 비디오 지원 (다중 파일 일괄 등록 가능)</p>
           </div>
         </div>
 
         <!-- Cards List Container -->
         <div id="cards-container" class="mt-4 space-y-3.5">
-          <!-- Dynamically filled by JavaScript -->
           <div id="empty-cards-state" class="py-8 text-center text-slate-500 text-sm">
-            등록된 카드가 없습니다. 상단에서 이미지를 추가하거나 <button id="btn-load-sample-inline" class="text-amber-400 hover:underline font-medium">안전 템플릿 예시</button>를 불러와보세요!
+            등록된 카드가 없습니다. 상단에서 파일들을 추가하거나 <button id="btn-load-sample-inline" class="text-amber-400 hover:underline font-medium">V2 하이브리드 예시</button>를 불러와보세요!
           </div>
         </div>
       </section>
@@ -132,7 +132,7 @@
       <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 shadow-xl backdrop-blur-sm space-y-5">
         <div class="flex items-center gap-2.5">
           <span class="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs border border-emerald-500/40">2</span>
-          <h2 class="font-bold text-slate-100 text-base">음성(TTS) & 자막/BGM 연출 설정</h2>
+          <h2 class="font-bold text-slate-100 text-base">AI 음성 성우 & 영상 연출 설정</h2>
         </div>
 
         <!-- Grid for Voice Settings -->
@@ -144,14 +144,13 @@
             </label>
             <div class="flex gap-2">
               <select id="voice-select" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
-                <!-- Dynamically populated from SpeechSynthesis API -->
               </select>
               <button id="btn-test-voice" class="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium border border-slate-700 flex items-center gap-1" title="음성 샘플 테스트">
                 <i data-lucide="play" class="w-3.5 h-3.5 text-emerald-400"></i>
                 <span>테스트</span>
               </button>
             </div>
-            <p class="text-[11px] text-slate-500">브라우저 내장 고품질 한국어 신경망 성우</p>
+            <p class="text-[11px] text-slate-500">한국어 신경망 고음질 성우</p>
           </div>
 
           <!-- Speech Rate & Pitch -->
@@ -222,43 +221,52 @@
               <option value="ambient_calm">차분한 안전 교육 앰비언트 (내장)</option>
               <option value="focus_tech">정돈된 스마트 안내 BGM (내장)</option>
               <option value="none">배경음악 없음 (음성만)</option>
-              <option value="custom">사용자 직접 BGM 파일 업로드...</option>
             </select>
-            <input type="file" id="custom-bgm-file" accept="audio/*" class="hidden">
             <input type="range" id="bgm-volume" min="0" max="0.3" step="0.01" value="0.12" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500">
           </div>
         </div>
 
-        <!-- Transition Style -->
-        <div class="flex items-center justify-between text-xs pt-1 text-slate-400">
-          <span class="flex items-center gap-1">
-            <i data-lucide="wand-2" class="w-3.5 h-3.5 text-emerald-400"></i>
-            카드 전환 효과
-          </span>
-          <div class="flex items-center gap-3">
-            <label class="flex items-center gap-1 cursor-pointer">
-              <input type="radio" name="transition-style" value="fade" checked class="text-emerald-500 focus:ring-emerald-500 bg-slate-950 border-slate-700">
-              <span class="text-slate-300">부드러운 페이드</span>
-            </label>
-            <label class="flex items-center gap-1 cursor-pointer">
-              <input type="radio" name="transition-style" value="cut" class="text-emerald-500 focus:ring-emerald-500 bg-slate-950 border-slate-700">
-              <span class="text-slate-300">깔끔한 컷(Cut)</span>
-            </label>
-            <label class="flex items-center gap-1 cursor-pointer">
-              <input type="radio" name="transition-style" value="slide" class="text-emerald-500 focus:ring-emerald-500 bg-slate-950 border-slate-700">
-              <span class="text-slate-300">좌우 슬라이드</span>
-            </label>
+        <!-- Video Card Default Layout & Transition -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 text-xs text-slate-400">
+          <div class="flex items-center justify-between">
+            <span class="flex items-center gap-1">
+              <i data-lucide="layout" class="w-3.5 h-3.5 text-indigo-400"></i>
+              동영상 카드 기본 연출
+            </span>
+            <select id="video-layout-default" class="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+              <option value="full" selected>풀스크린 (전체 채우기)</option>
+              <option value="pip">액자형 프레임 (카드 속 영상)</option>
+            </select>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <span class="flex items-center gap-1">
+              <i data-lucide="wand-2" class="w-3.5 h-3.5 text-emerald-400"></i>
+              카드 전환 효과
+            </span>
+            <div class="flex items-center gap-2">
+              <label class="flex items-center gap-1 cursor-pointer">
+                <input type="radio" name="transition-style" value="fade" checked class="text-emerald-500 focus:ring-emerald-500 bg-slate-950 border-slate-700">
+                <span class="text-slate-300">페이드</span>
+              </label>
+              <label class="flex items-center gap-1 cursor-pointer">
+                <input type="radio" name="transition-style" value="cut" class="text-emerald-500 focus:ring-emerald-500 bg-slate-950 border-slate-700">
+                <span class="text-slate-300">컷</span>
+              </label>
+              <label class="flex items-center gap-1 cursor-pointer">
+                <input type="radio" name="transition-style" value="slide" class="text-emerald-500 focus:ring-emerald-500 bg-slate-950 border-slate-700">
+                <span class="text-slate-300">슬라이드</span>
+              </label>
+            </div>
           </div>
         </div>
       </section>
 
     </div>
 
-
     <!-- RIGHT COLUMN: Sticky Live Preview & Video Rendering (5 cols) -->
     <div class="lg:col-span-5 space-y-6">
 
-      <!-- PREVIEW & EXPORT CONTAINER (Sticky on desktop) -->
       <div class="sticky top-20 space-y-6">
 
         <!-- PREVIEW BOX -->
@@ -276,19 +284,16 @@
           <!-- Canvas / Video Display Area -->
           <div class="relative w-full aspect-square bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center group shadow-inner">
             
-            <!-- In-browser preview canvas (hidden during idle/active playback) -->
             <canvas id="preview-canvas" width="1080" height="1080" class="w-full h-full object-contain"></canvas>
 
-            <!-- Video Player (shown after export) -->
             <video id="result-video" controls class="absolute inset-0 w-full h-full object-contain hidden bg-black"></video>
 
-            <!-- Canvas Placeholder when empty -->
             <div id="preview-placeholder" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-slate-500 bg-slate-950/80">
               <div class="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-3">
                 <i data-lucide="film" class="w-7 h-7 text-slate-600"></i>
               </div>
-              <p class="text-sm font-medium text-slate-300">카드를 등록하고 대본을 입력하세요</p>
-              <p class="text-xs text-slate-500 mt-1 max-w-xs">음성과 자막이 합성된 비디오가 실시간으로 이곳에 표시됩니다.</p>
+              <p class="text-sm font-medium text-slate-300">미디어 카드를 등록하고 대본을 입력하세요</p>
+              <p class="text-xs text-slate-500 mt-1 max-w-xs">이미지와 동영상 클립이 실시간으로 이곳에 렌더링됩니다.</p>
             </div>
 
             <!-- Rendering Overlay -->
@@ -299,18 +304,17 @@
                   0%
                 </div>
               </div>
-              <p class="text-sm font-bold text-slate-100" id="render-stage-text">음성 합성 및 비디오 인코딩 중...</p>
+              <p class="text-sm font-bold text-slate-100" id="render-stage-text">하이브리드 비디오 렌더링 중...</p>
               <p class="text-xs text-slate-400 mt-1" id="render-detail-text">잠시만 기다려주세요</p>
               <div class="w-full bg-slate-800 h-2 rounded-full mt-4 overflow-hidden border border-slate-700">
-                <div id="render-progress-bar" class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full w-0 transition-all duration-300"></div>
+                <div id="render-progress-bar" class="bg-gradient-to-r from-emerald-500 to-indigo-500 h-full w-0 transition-all duration-300"></div>
               </div>
             </div>
           </div>
 
-          <!-- Video Playback & Export Controller Controls -->
+          <!-- Video Playback & Controller -->
           <div class="mt-4 space-y-3">
             
-            <!-- Quick Slide Preview Navigation -->
             <div class="flex items-center justify-between bg-slate-950/60 p-2 rounded-xl border border-slate-800/80">
               <div class="flex items-center gap-1.5">
                 <button id="btn-prev-card" class="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-lg transition-colors">
@@ -332,9 +336,9 @@
 
             <!-- Big Action Buttons -->
             <div class="space-y-2">
-              <button id="btn-start-render" class="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-slate-950 font-bold text-sm rounded-xl shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 flex items-center justify-center gap-2 transition-all transform active:scale-[0.99]">
+              <button id="btn-start-render" class="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 via-teal-500 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-slate-950 font-bold text-sm rounded-xl shadow-lg shadow-emerald-500/25 hover:shadow-indigo-500/40 flex items-center justify-center gap-2 transition-all transform active:scale-[0.99]">
                 <i data-lucide="clapperboard" class="w-5 h-5 stroke-[2.5]"></i>
-                <span>🎬 MP4 동영상 제작하기 (Render)</span>
+                <span>🎬 V2 MP4 동영상 제작하기 (Render)</span>
               </button>
 
               <button id="btn-download-video" class="w-full py-3 px-4 bg-slate-800 hover:bg-slate-700 text-amber-300 font-semibold text-xs rounded-xl border border-amber-500/30 hover:border-amber-500/60 shadow-md flex items-center justify-center gap-2 transition-all hidden">
@@ -345,17 +349,16 @@
           </div>
         </section>
 
-        <!-- SAFETY TIPS / SUMMARY CARD -->
+        <!-- V2 NEW FEATURE TIPS -->
         <div class="bg-gradient-to-br from-slate-900/60 to-slate-950/80 border border-slate-800/80 rounded-2xl p-4 text-xs text-slate-400 space-y-2">
-          <div class="flex items-center gap-2 text-slate-200 font-semibold">
-            <i data-lucide="lightbulb" class="w-4 h-4 text-amber-400"></i>
-            <span>사내 안전 동영상 제작 꿀팁</span>
+          <div class="flex items-center gap-2 text-indigo-300 font-semibold">
+            <i data-lucide="sparkles" class="w-4 h-4 text-indigo-400"></i>
+            <span>V2 동영상 카드 활용 안내</span>
           </div>
           <ul class="list-disc list-inside space-y-1 text-slate-400 leading-relaxed">
-            <li><strong>문장 길이</strong>: 카드 1장당 1~2문장 (약 15~30자) 이내로 간결하게 작성하면 집중도가 높아집니다.</li>
-            <li><strong>낭독 속도</strong>: 기본 1.0x가 안전 교육 및 공지 전달에 가장 정확합니다.</li>
-            <li><strong>화면 비율</strong>: 사내 메신저/카카오톡 공유는 1:1, 모바일 전용은 4:5, 사이니지 전광판은 16:9를 추천합니다.</li>
-            <li><strong>100% 프라이버시</strong>: 모든 이미지와 음성은 외부 서버로 유출되지 않고 브라우저 내에서 안전하게 처리됩니다.</li>
+            <li><strong>이미지 + 동영상 혼합</strong>: 이미지 슬라이드 사이에 현장 시연 비디오 클립을 자유롭게 배치할 수 있습니다.</li>
+            <li><strong>원본 사운드 선택</strong>: 동영상 카드의 원본 음성을 음소거(Mute)하거나, AI 나레이션과 함께 믹싱할 수 있습니다.</li>
+            <li><strong>레이아웃 옵션</strong>: 풀스크린 전체 화면 또는 카드 템플릿 프레임 속 액자형(PiP)을 카드별로 선택 가능합니다.</li>
           </ul>
         </div>
 
@@ -371,7 +374,7 @@
       <div class="flex items-center justify-between border-b border-slate-800 pb-3">
         <h3 class="font-bold text-base text-slate-100 flex items-center gap-2">
           <i data-lucide="help-circle" class="w-5 h-5 text-emerald-400"></i>
-          사용 가이드 & GitHub 배포 방법
+          V2 사용 가이드 & 신규 기능 안내
         </h3>
         <button id="btn-close-help" class="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800">
           <i data-lucide="x" class="w-5 h-5"></i>
@@ -380,26 +383,18 @@
 
       <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
         <div class="space-y-1">
-          <h4 class="font-semibold text-emerald-400 text-sm">1. 카드 뉴스 등록</h4>
-          <p>안전 카드 이미지(PNG, JPG)를 드래그하여 등록하고, 각 카드에 읽어줄 나레이션 대본을 입력합니다.</p>
+          <h4 class="font-semibold text-emerald-400 text-sm">1. 이미지 및 동영상 클립 일괄 등록</h4>
+          <p>카드 이미지와 함께 현장 작업 영상(MP4, WebM)을 함께 업로드할 수 있습니다.</p>
         </div>
 
         <div class="space-y-1">
-          <h4 class="font-semibold text-emerald-400 text-sm">2. AI 음성 및 BGM 설정</h4>
-          <p>선호하는 성우 목소리와 나레이션 속도를 조절하고, 자막 디자인과 어울리는 배경음악을 선택합니다.</p>
+          <h4 class="font-semibold text-indigo-400 text-sm">2. 동영상 카드 맞춤 설정</h4>
+          <p>동영상 카드별로 [원본 사운드 믹싱] 여부와 [풀스크린 vs 액자형 PiP] 레이아웃을 개별 지정할 수 있습니다.</p>
         </div>
 
         <div class="space-y-1">
-          <h4 class="font-semibold text-emerald-400 text-sm">3. 원클릭 MP4 생성 및 다운로드</h4>
-          <p>[MP4 동영상 제작하기] 버튼을 누르면 고화질 동영상이 브라우저 내에서 즉시 렌더링되어 다운로드할 수 있습니다.</p>
-        </div>
-
-        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
-          <h4 class="font-semibold text-amber-300 text-xs flex items-center gap-1.5">
-            <i data-lucide="github" class="w-4 h-4"></i>
-            GitHub Pages 배포 안내
-          </h4>
-          <p class="text-slate-400 text-[11px]">이 프로젝트는 100% 정적 웹앱으로 구성되어 있어, GitHub 저장소에 Push 후 <strong>Settings -> Pages</strong>에서 `main` 브랜치를 선택하기만 하면 전사 직원 누구나 웹 링크로 바로 접속해 사용할 수 있습니다.</p>
+          <h4 class="font-semibold text-amber-400 text-sm">3. 원클릭 렌더링 & 무설치 웹 구동</h4>
+          <p>브라우저 내에서 고성능 캔버스 비디오 믹서가 이미지와 영상을 실시간 합성하여 다운로드용 MP4 파일로 변환합니다.</p>
         </div>
       </div>
 
@@ -412,12 +407,11 @@
   </div>
 
   <!-- SCRIPTS -->
-  <script src="js/sample-data.js?v=1.0.1"></script>
-  <script src="js/tts-engine.js?v=1.0.1"></script>
-  <script src="js/video-renderer.js?v=1.0.1"></script>
-  <script src="js/app.js?v=1.0.1"></script>
+  <script src="js/sample-data.js?v=2.0.0"></script>
+  <script src="js/tts-engine.js?v=2.0.0"></script>
+  <script src="js/video-renderer.js?v=2.0.0"></script>
+  <script src="js/app.js?v=2.0.0"></script>
   <script>
-    // Initialize Lucide icons
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
     });

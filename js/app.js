@@ -1,6 +1,6 @@
 /**
- * app.js
- * Main UI Controller and Application State Manager
+ * app.js (V2 Hybrid Studio)
+ * Main UI Controller for Image & Video Hybrid Card News
  */
 
 class SafetyCardApp {
@@ -14,10 +14,9 @@ class SafetyCardApp {
     this.initEvents();
     this.initRenderer();
 
-    // Auto load sample on first visit if empty
     setTimeout(() => {
       if (this.cards.length === 0) {
-        this.loadSampleTemplate('confinedSpace');
+        this.loadSampleTemplate('hybridStudio');
       }
     }, 300);
   }
@@ -42,7 +41,7 @@ class SafetyCardApp {
     this.bgmSelect = document.getElementById('bgm-select');
     this.bgmVolumeInput = document.getElementById('bgm-volume');
     this.bgmVolVal = document.getElementById('bgm-vol-val');
-    this.customBgmFileInput = document.getElementById('custom-bgm-file');
+    this.videoLayoutDefault = document.getElementById('video-layout-default');
 
     this.previewCanvas = document.getElementById('preview-canvas');
     this.resultVideo = document.getElementById('result-video');
@@ -128,7 +127,7 @@ class SafetyCardApp {
     });
 
     this.btnTestVoice.addEventListener('click', () => {
-      window.ttsEngine.speak('안전카드뉴스 음성 합성을 테스트합니다. 오늘도 안전한 하루 되십시오.', parseFloat(this.speechRateInput.value));
+      window.ttsEngine.speak('안전카드뉴스 V2 음성 합성을 테스트합니다. 오늘도 안전한 하루 되십시오.', parseFloat(this.speechRateInput.value));
     });
 
     this.aspectRatioSelect.addEventListener('change', () => {
@@ -167,15 +166,15 @@ class SafetyCardApp {
       a.href = this.videoRenderer.currentUrl;
       const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
       const ext = this.videoRenderer.lastExtension || 'mp4';
-      a.download = `안전카드뉴스_동영상_${today}.${ext}`;
+      a.download = `안전카드뉴스_V2동영상_${today}.${ext}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
     });
 
-    this.btnLoadSample.addEventListener('click', () => this.loadSampleTemplate('confinedSpace'));
+    this.btnLoadSample.addEventListener('click', () => this.loadSampleTemplate('hybridStudio'));
     if (this.btnLoadSampleInline) {
-      this.btnLoadSampleInline.addEventListener('click', () => this.loadSampleTemplate('confinedSpace'));
+      this.btnLoadSampleInline.addEventListener('click', () => this.loadSampleTemplate('hybridStudio'));
     }
 
     this.btnSaveProject.addEventListener('click', () => this.saveProject());
@@ -191,27 +190,73 @@ class SafetyCardApp {
     this.videoRenderer.setDimensions(ratio);
   }
 
+  /**
+   * Handle uploaded Image & Video files
+   */
   async handleFiles(files) {
     if (!files || files.length === 0) return;
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      if (!file.type.startsWith('image/')) continue;
-
-      const dataUrl = await this.readFileAsDataUrl(file);
       const fileName = file.name.replace(/\.[^/.]+$/, "");
+      const isVideo = file.type.startsWith('video/');
+      const isImage = file.type.startsWith('image/');
 
-      this.cards.push({
-        id: 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-        title: fileName,
-        script: `${fileName}에 대한 안전 안내입니다. 안전수칙을 철저히 준수하십시오.`,
-        imageUrl: dataUrl,
-        originalFileName: file.name
-      });
+      if (!isVideo && !isImage) continue;
+
+      if (isVideo) {
+        const videoUrl = URL.createObjectURL(file);
+        const thumbUrl = await this.generateVideoThumbnail(videoUrl);
+
+        this.cards.push({
+          id: 'card_vid_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+          mediaType: 'video',
+          title: fileName,
+          script: `${fileName} 현장 작업 시연 영상입니다. 작업 안전수칙을 준수하십시오.`,
+          mediaUrl: videoUrl,
+          imageUrl: thumbUrl,
+          videoLayout: this.videoLayoutDefault.value || 'full',
+          videoAudioMode: 'mute',
+          syncMode: 'tts_length',
+          originalFileName: file.name
+        });
+      } else {
+        const dataUrl = await this.readFileAsDataUrl(file);
+        this.cards.push({
+          id: 'card_img_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+          mediaType: 'image',
+          title: fileName,
+          script: `${fileName}에 대한 안전 안내입니다. 안전수칙을 철저히 준수하십시오.`,
+          mediaUrl: dataUrl,
+          imageUrl: dataUrl,
+          originalFileName: file.name
+        });
+      }
     }
 
     this.renderCardsList();
     this.updatePreviewCanvas();
+  }
+
+  generateVideoThumbnail(videoUrl) {
+    return new Promise((resolve) => {
+      const video = document.createElement('video');
+      video.src = videoUrl;
+      video.muted = true;
+      video.playsInline = true;
+      video.currentTime = 0.5;
+      video.onloadeddata = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 320;
+        canvas.height = 320;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, 320, 320);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      video.onerror = () => {
+        resolve('');
+      };
+    });
   }
 
   readFileAsDataUrl(file) {
@@ -223,15 +268,42 @@ class SafetyCardApp {
     });
   }
 
-  loadSampleTemplate(key = 'confinedSpace') {
-    const tpl = SampleSafetyTemplates[key] || SampleSafetyTemplates.confinedSpace;
-    this.cards = tpl.cards.map((c, idx) => ({
-      id: 'card_tpl_' + idx + '_' + Date.now(),
-      title: c.title,
-      script: c.script,
-      imageUrl: createSvgCardDataUrl(c, 1080, 1080),
-      originalFileName: `sample_${idx + 1}.png`
-    }));
+  /**
+   * Load V2 Sample Template with Images and Animated Motion Videos
+   */
+  async loadSampleTemplate(key = 'hybridStudio') {
+    const tpl = SampleSafetyTemplates[key] || SampleSafetyTemplates.hybridStudio;
+    this.cards = [];
+
+    for (let idx = 0; idx < tpl.cards.length; idx++) {
+      const c = tpl.cards[idx];
+      if (c.mediaType === 'video') {
+        const motionVideoUrl = await createAnimatedMotionVideoDataUrl(c.title, c.icon || '⚠️', c.accentColor || '#38bdf8', 3.5);
+        this.cards.push({
+          id: 'card_tpl_vid_' + idx + '_' + Date.now(),
+          mediaType: 'video',
+          title: c.title,
+          script: c.script,
+          mediaUrl: motionVideoUrl,
+          imageUrl: createSvgCardDataUrl(c, 1080, 1080),
+          videoLayout: c.videoLayout || 'pip',
+          videoAudioMode: c.videoAudioMode || 'mute',
+          syncMode: c.syncMode || 'tts_length',
+          originalFileName: `sample_demo_${idx + 1}.webm`
+        });
+      } else {
+        const svgUrl = createSvgCardDataUrl(c, 1080, 1080);
+        this.cards.push({
+          id: 'card_tpl_img_' + idx + '_' + Date.now(),
+          mediaType: 'image',
+          title: c.title,
+          script: c.script,
+          mediaUrl: svgUrl,
+          imageUrl: svgUrl,
+          originalFileName: `sample_${idx + 1}.png`
+        });
+      }
+    }
 
     this.currentPreviewIndex = 0;
     this.renderCardsList();
@@ -244,12 +316,12 @@ class SafetyCardApp {
     if (this.cards.length === 0) {
       this.cardsContainer.innerHTML = `
         <div id="empty-cards-state" class="py-8 text-center text-slate-500 text-sm">
-          등록된 카드가 없습니다. 상단에서 이미지를 추가하거나 
-          <button id="btn-load-sample-inline" class="text-amber-400 hover:underline font-medium">안전 템플릿 예시</button>를 불러와보세요!
+          등록된 카드가 없습니다. 상단에서 파일들을 추가하거나 
+          <button id="btn-load-sample-inline" class="text-amber-400 hover:underline font-medium">V2 하이브리드 예시</button>를 불러와보세요!
         </div>
       `;
       const btn = document.getElementById('btn-load-sample-inline');
-      if (btn) btn.addEventListener('click', () => this.loadSampleTemplate('confinedSpace'));
+      if (btn) btn.addEventListener('click', () => this.loadSampleTemplate('hybridStudio'));
       this.btnClearAll.classList.add('hidden');
       this.currentPreviewIndex = 0;
       this.previewPlaceholder.classList.remove('hidden');
@@ -266,33 +338,63 @@ class SafetyCardApp {
     this.cards.forEach((card, index) => {
       const estSec = window.ttsEngine.estimateDuration(card.script, rate);
       const isSelected = (index === this.currentPreviewIndex);
+      const isVideo = (card.mediaType === 'video');
 
       html += `
         <div class="card-item bg-slate-950/70 border ${isSelected ? 'border-emerald-500 shadow-md shadow-emerald-500/10' : 'border-slate-800'} rounded-xl p-3.5 flex flex-col sm:flex-row gap-3.5 items-start sm:items-center relative group" data-id="${card.id}" data-index="${index}">
           
+          <!-- Drag Handle & Thumb -->
           <div class="flex items-center gap-2">
             <span class="w-6 h-6 rounded-lg bg-slate-800 text-slate-300 font-mono font-bold text-xs flex items-center justify-center border border-slate-700">
               ${index + 1}
             </span>
-            <div class="w-16 h-16 rounded-lg bg-slate-900 border border-slate-800 overflow-hidden flex-shrink-0 cursor-pointer card-thumb" data-index="${index}">
-              <img src="${card.imageUrl}" class="w-full h-full object-cover" alt="Card ${index + 1}">
+            <div class="w-16 h-16 rounded-lg bg-slate-900 border border-slate-800 overflow-hidden flex-shrink-0 cursor-pointer card-thumb relative" data-index="${index}">
+              <img src="${card.imageUrl || card.mediaUrl}" class="w-full h-full object-cover" alt="Card ${index + 1}">
+              ${isVideo ? `
+                <div class="absolute inset-0 bg-black/40 flex items-center justify-center">
+                  <i data-lucide="play" class="w-5 h-5 text-indigo-400 fill-indigo-400/30"></i>
+                </div>
+              ` : ''}
             </div>
           </div>
 
+          <!-- Script & Controls -->
           <div class="flex-1 w-full space-y-1.5">
-            <div class="flex items-center justify-between">
-              <input type="text" class="card-title-input text-xs font-bold text-slate-200 bg-transparent border-b border-transparent focus:border-emerald-500 focus:outline-none px-1 py-0.5 w-2/3" value="${this.escapeHtml(card.title)}" placeholder="카드 제목" data-index="${index}">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 flex-1">
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isVideo ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'} flex items-center gap-1">
+                  <i data-lucide="${isVideo ? 'video' : 'image'}" class="w-3 h-3"></i>
+                  ${isVideo ? '동영상 카드' : '이미지 카드'}
+                </span>
+                <input type="text" class="card-title-input text-xs font-bold text-slate-200 bg-transparent border-b border-transparent focus:border-emerald-500 focus:outline-none px-1 py-0.5 flex-1" value="${this.escapeHtml(card.title)}" placeholder="카드 제목" data-index="${index}">
+              </div>
+
               <div class="flex items-center gap-1 text-[11px] text-slate-400 font-mono">
                 <i data-lucide="clock" class="w-3 h-3 text-emerald-400 inline"></i>
                 <span class="card-duration-text">약 ${estSec}초</span>
               </div>
             </div>
 
+            <!-- Video specific option row -->
+            ${isVideo ? `
+              <div class="flex items-center gap-3 text-[11px] text-slate-400 bg-slate-900/90 px-2 py-1 rounded-lg border border-slate-800">
+                <span class="text-indigo-400 font-medium">영상 연출:</span>
+                <label class="flex items-center gap-1">
+                  <span>레이아웃:</span>
+                  <select class="card-video-layout bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-slate-200" data-index="${index}">
+                    <option value="full" ${card.videoLayout === 'full' ? 'selected' : ''}>풀스크린</option>
+                    <option value="pip" ${card.videoLayout === 'pip' ? 'selected' : ''}>액자형 PiP</option>
+                  </select>
+                </label>
+              </div>
+            ` : ''}
+
             <div class="relative">
               <textarea rows="2" class="card-script-input w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 placeholder-slate-600 transition-colors" placeholder="이 카드가 나올 때 읽어줄 나레이션 대본을 입력하세요..." data-index="${index}">${this.escapeHtml(card.script)}</textarea>
             </div>
           </div>
 
+          <!-- Action Buttons -->
           <div class="flex sm:flex-col items-center gap-1 sm:self-center">
             <button class="btn-play-card p-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 rounded-lg border border-slate-700 transition-all" title="이 카드 음성 미리듣기" data-index="${index}">
               <i data-lucide="volume-2" class="w-4 h-4"></i>
@@ -324,6 +426,16 @@ class SafetyCardApp {
       input.addEventListener('input', (e) => {
         const idx = parseInt(e.target.dataset.index);
         this.cards[idx].title = e.target.value;
+      });
+    });
+
+    document.querySelectorAll('.card-video-layout').forEach(sel => {
+      sel.addEventListener('change', (e) => {
+        const idx = parseInt(e.target.dataset.index);
+        this.cards[idx].videoLayout = e.target.value;
+        if (idx === this.currentPreviewIndex) {
+          this.updatePreviewCanvas();
+        }
       });
     });
 
@@ -444,19 +556,21 @@ class SafetyCardApp {
     };
 
     try {
-      const img = await this.videoRenderer.loadImage(card.imageUrl);
-      this.videoRenderer.drawCardFrame(img, card.script, subtitleOpts, 1.0);
+      if (card.mediaType === 'video') {
+        const videoObj = await this.videoRenderer.loadVideo(card.mediaUrl || card.imageUrl);
+        this.videoRenderer.drawCardFrame(videoObj, card, subtitleOpts, 1.0);
+      } else {
+        const imgObj = await this.videoRenderer.loadImage(card.mediaUrl || card.imageUrl);
+        this.videoRenderer.drawCardFrame(imgObj, card, subtitleOpts, 1.0);
+      }
     } catch (err) {
-      console.warn("Failed to load preview image:", err);
+      console.warn("Preview load error:", err);
     }
   }
 
-  /**
-   * Start Video Rendering & Export
-   */
   async startRendering() {
     if (this.cards.length === 0) {
-      alert("먼저 카드 뉴스 이미지를 1장 이상 등록해주세요.");
+      alert("먼저 카드 뉴스 미디어를 1장 이상 등록해주세요.");
       return;
     }
 
@@ -503,23 +617,15 @@ class SafetyCardApp {
       this.statusTag.className = "text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30";
 
       let msg = "알 수 없는 오류가 발생했습니다.";
-      if (typeof err === 'string') {
-        msg = err;
-      } else if (err?.message) {
-        msg = err.message;
-      } else if (err?.error?.message) {
-        msg = err.error.message;
-      } else if (err?.name) {
-        msg = err.name;
-      } else {
-        try {
-          msg = JSON.stringify(err);
-        } catch(e) {
-          msg = String(err);
-        }
+      if (typeof err === 'string') msg = err;
+      else if (err?.message) msg = err.message;
+      else if (err?.error?.message) msg = err.error.message;
+      else if (err?.name) msg = err.name;
+      else {
+        try { msg = JSON.stringify(err); } catch(e) { msg = String(err); }
       }
 
-      console.error("동영상 제작 오류 상세:", err);
+      console.error("V2 렌더링 에러:", err);
       alert("동영상 제작 중 오류가 발생했습니다:\n" + msg);
     } finally {
       this.isRendering = false;
@@ -528,7 +634,7 @@ class SafetyCardApp {
 
   saveProject() {
     const data = {
-      version: "1.0",
+      version: "2.0",
       createdAt: new Date().toISOString(),
       cards: this.cards,
       settings: {
@@ -546,7 +652,7 @@ class SafetyCardApp {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `안전카드뉴스_프로젝트_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `안전카드뉴스_V2프로젝트_${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -583,7 +689,7 @@ class SafetyCardApp {
           this.renderCardsList();
           this.updateCanvasAspect();
           this.updatePreviewCanvas();
-          alert("프로젝트를 성공적으로 불러왔습니다!");
+          alert("V2 프로젝트를 성공적으로 불러왔습니다!");
         }
       } catch (err) {
         alert("프로젝트 파일 형식이 올바르지 않습니다.");
