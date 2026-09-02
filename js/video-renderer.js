@@ -335,9 +335,12 @@ class VideoRenderer {
       const voiceType = settings.voiceType || 'ko-standard-female';
       for (let i = 0; i < cards.length; i++) {
         if (progressCallback) {
-          progressCallback(10 + Math.round((i / cards.length) * 15), `카드 ${i + 1} AI 음성 오디오 합성 중...`, cards[i].title);
+          progressCallback(10 + Math.round((i / cards.length) * 15), `카드 ${i + 1} 음성 오디오 합성 중...`, cards[i].title);
         }
-        const audioBuf = await window.ttsEngine.getTTSAudioBuffer(cards[i].script, voiceType, rate);
+        let audioBuf = cards[i].customAudioBuffer;
+        if (!audioBuf) {
+          audioBuf = await window.ttsEngine.getTTSAudioBuffer(cards[i].script, voiceType, rate);
+        }
         ttsAudioBuffers.push(audioBuf);
       }
 
@@ -472,11 +475,11 @@ class VideoRenderer {
               const voiceSrc = audioCtx.createBufferSource();
               voiceSrc.buffer = segment.ttsAudioBuffer;
               const voiceGain = audioCtx.createGain();
-              voiceGain.gain.value = 1.0;
+              voiceGain.gain.value = 1.35;
               voiceSrc.connect(voiceGain);
               voiceGain.connect(dest);
               voiceGain.connect(audioCtx.destination);
-              voiceSrc.start(audioCtx.currentTime);
+              voiceSrc.start(audioCtx.currentTime + 0.05);
             } catch (vErr) {
               console.warn("TTS Buffer Play warning:", vErr);
             }

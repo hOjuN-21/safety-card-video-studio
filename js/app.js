@@ -352,7 +352,10 @@ class SafetyCardApp {
 
     let html = '';
     this.cards.forEach((card, index) => {
-      const estSec = window.ttsEngine.estimateDuration(card.script, rate);
+      const hasCustomAudio = !!card.customAudioBuffer;
+      const estSec = hasCustomAudio 
+        ? Math.round(card.customAudioBuffer.duration * 10) / 10 
+        : window.ttsEngine.estimateDuration(card.script, rate);
       const isSelected = (index === this.currentPreviewIndex);
       const isVideo = (card.mediaType === 'video');
 
@@ -373,7 +376,7 @@ class SafetyCardApp {
             </div>
           </div>
 
-          <div class="flex-1 w-full space-y-1.5">
+          <div class="flex-1 w-full space-y-2">
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-2 flex-1">
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isVideo ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'} flex items-center gap-1">
@@ -383,7 +386,7 @@ class SafetyCardApp {
                 <input type="text" class="card-title-input text-xs font-bold text-slate-200 bg-transparent border-b border-transparent focus:border-emerald-500 focus:outline-none px-1 py-0.5 flex-1" value="${this.escapeHtml(card.title)}" placeholder="카드 제목" data-index="${index}">
               </div>
 
-              <div class="flex items-center gap-1 text-[11px] text-slate-400 font-mono">
+              <div class="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono">
                 <i data-lucide="clock" class="w-3 h-3 text-emerald-400 inline"></i>
                 <span class="card-duration-text">약 ${estSec}초</span>
               </div>
@@ -405,6 +408,38 @@ class SafetyCardApp {
             <div class="relative">
               <textarea rows="2" class="card-script-input w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 placeholder-slate-600 transition-colors" placeholder="이 카드가 나올 때 읽어줄 나레이션 대본을 입력하세요..." data-index="${index}">${this.escapeHtml(card.script)}</textarea>
             </div>
+
+            <!-- Card Audio Toolbar (Mic recording & File upload) -->
+            <div class="flex items-center justify-between gap-2 pt-0.5 text-[11px]">
+              <div class="flex items-center gap-1.5">
+                ${hasCustomAudio ? `
+                  <span class="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1 font-medium">
+                    <i data-lucide="mic" class="w-3 h-3 text-amber-400"></i>
+                    ${card.customAudioName || '녹음된 음성'}
+                  </span>
+                  <button class="btn-clear-custom-audio text-[10px] text-slate-400 hover:text-rose-400 underline" data-index="${index}">AI 음성으로 복구</button>
+                ` : `
+                  <span class="text-slate-400 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    AI 자동 음성 나레이션
+                  </span>
+                `}
+              </div>
+
+              <div class="flex items-center gap-1">
+                <button class="btn-mic-card px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-amber-300 rounded border border-slate-800 flex items-center gap-1 transition-colors" data-index="${index}" title="마이크로 직접 나레이션 녹음">
+                  <i data-lucide="mic" class="w-3 h-3 text-amber-400"></i>
+                  <span class="mic-label">마이크 녹음</span>
+                </button>
+
+                <label class="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-indigo-300 rounded border border-slate-800 flex items-center gap-1 cursor-pointer transition-colors" title="이 카드의 음성 MP3/WAV 파일 등록">
+                  <i data-lucide="file-audio" class="w-3 h-3 text-indigo-400"></i>
+                  <span>음성 등록</span>
+                  <input type="file" class="card-audio-file-input hidden" accept="audio/*" data-index="${index}">
+                </label>
+              </div>
+            </div>
+
           </div>
 
           <div class="flex sm:flex-col items-center gap-1 sm:self-center">
@@ -460,7 +495,9 @@ class SafetyCardApp {
         const estSec = window.ttsEngine.estimateDuration(e.target.value, rate);
         const parent = textarea.closest('.card-item');
         const durBadge = parent.querySelector('.card-duration-text');
-        if (durBadge) durBadge.textContent = `약 ${estSec}초`;
+        if (durBadge && !this.cards[idx].customAudioBuffer) {
+          durBadge.textContent = `약 ${estSec}초`;
+        }
 
         if (idx === this.currentPreviewIndex) {
           this.updatePreviewCanvas();
@@ -477,12 +514,81 @@ class SafetyCardApp {
       });
     });
 
+    // Per-card speech or custom audio preview
     document.querySelectorAll('.btn-play-card').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const idx = parseInt(e.currentTarget.dataset.index);
         const card = this.cards[idx];
-        const rate = parseFloat(this.speechRateInput.value);
-        window.ttsEngine.speak(card.script, this.voiceSelect.value, rate);
+        if (card.customAudioBuffer) {
+          const ctx = window.ttsEngine.getAudioContext();
+          const src = ctx.createBufferSource();
+          src.buffer = card.customAudioBuffer;
+          src.connect(ctx.destination);
+          src.start();
+        } else {
+          const rate = parseFloat(this.speechRateInput.value);
+          window.ttsEngine.speak(card.script, this.voiceSelect.value, rate);
+        }
+      });
+    });
+
+    // Card Microphone Recording
+    document.querySelectorAll('.btn-mic-card').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const idx = parseInt(e.currentTarget.dataset.index);
+        const micLabel = btn.querySelector('.mic-label');
+
+        if (!window.ttsEngine.isRecordingMic) {
+          try {
+            await window.ttsEngine.startMicRecording();
+            btn.classList.add('bg-rose-900/80', 'text-rose-200', 'animate-pulse');
+            micLabel.textContent = "녹음 중 (클릭시 정지)";
+          } catch (err) {
+            alert("마이크 권한을 허용해주세요: " + err.message);
+          }
+        } else {
+          try {
+            const { audioBuffer } = await window.ttsEngine.stopMicRecording();
+            btn.classList.remove('bg-rose-900/80', 'text-rose-200', 'animate-pulse');
+            micLabel.textContent = "마이크 녹음";
+
+            this.cards[idx].customAudioBuffer = audioBuffer;
+            this.cards[idx].customAudioName = `직접 녹음 (${Math.round(audioBuffer.duration * 10) / 10}초)`;
+            this.renderCardsList();
+            alert("카드 음성이 직접 녹음되었습니다!");
+          } catch (err) {
+            alert("녹음 저장 중 오류가 발생했습니다: " + err.message);
+          }
+        }
+      });
+    });
+
+    // Card Custom Audio File Upload
+    document.querySelectorAll('.card-audio-file-input').forEach(input => {
+      input.addEventListener('change', async (e) => {
+        const idx = parseInt(e.target.dataset.index);
+        const file = e.target.files[0];
+        if (file) {
+          try {
+            const audioBuffer = await window.ttsEngine.decodeAudioFile(file);
+            this.cards[idx].customAudioBuffer = audioBuffer;
+            this.cards[idx].customAudioName = file.name;
+            this.renderCardsList();
+            alert(`카드 ${idx + 1}번에 음성 파일이 등록되었습니다: ${file.name}`);
+          } catch (err) {
+            alert("오디오 파일을 디코딩하지 못했습니다: " + err.message);
+          }
+        }
+      });
+    });
+
+    // Clear Custom Audio & revert to AI TTS
+    document.querySelectorAll('.btn-clear-custom-audio').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.currentTarget.dataset.index);
+        delete this.cards[idx].customAudioBuffer;
+        delete this.cards[idx].customAudioName;
+        this.renderCardsList();
       });
     });
 

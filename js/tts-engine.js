@@ -1,6 +1,6 @@
 /**
- * tts-engine.js (V2.3 Pure Human Voice & Neural Speech Engine)
- * Native Web Speech Integration + Multi-Gateway MP3 Fetcher + Zero-Robotic Fallback
+ * tts-engine.js (V2.4 Guaranteed Audio Embedding Engine)
+ * Multi-Gateway Audio Buffer Fetcher + Base64 Decoder + Mic Recording + Web Speech
  */
 
 class TTSEngine {
@@ -9,6 +9,9 @@ class TTSEngine {
     this.customBgmBuffer = null;
     this.customBgmName = "";
     this.ttsBufferCache = new Map();
+    this.mediaRecorder = null;
+    this.recordedAudioChunks = [];
+    this.isRecordingMic = false;
     this.cachedVoices = [];
     this.initVoices();
   }
@@ -45,9 +48,6 @@ class TTSEngine {
     return Math.max(2.0, Math.round((baseSec + pauseSec) * 10) / 10);
   }
 
-  /**
-   * Get the best matching OS Korean voice
-   */
   getBestVoice(voiceType = 'ko-standard-female') {
     const voices = this.cachedVoices.length > 0 ? this.cachedVoices : (window.speechSynthesis ? window.speechSynthesis.getVoices() : []);
     const koVoices = voices.filter(v => v.lang && (v.lang.startsWith('ko') || v.lang.includes('KR') || v.name.includes('Korean') || v.name.includes('한국어')));
@@ -69,9 +69,6 @@ class TTSEngine {
     return koVoices[0] || voices[0] || null;
   }
 
-  /**
-   * Speak preview in browser using native Web Speech Synthesis with crystal-clear human voices
-   */
   speak(text, voiceType = 'ko-standard-female', rate = 1.0, onEnd = null) {
     if (!window.speechSynthesis) {
       if (onEnd) onEnd();
@@ -91,16 +88,14 @@ class TTSEngine {
       const voice = this.getBestVoice(voiceType);
       if (voice) utterance.voice = voice;
 
-      // Adjust pitch and rate according to voice character
       if (voiceType === 'ko-standard-male') {
         const isMaleNative = voice && (voice.name.includes('InJoon') || voice.name.includes('Male') || voice.name.includes('남성'));
-        utterance.pitch = isMaleNative ? 0.95 : 0.72; // Deep resonant pitch if simulating male
+        utterance.pitch = isMaleNative ? 0.95 : 0.72;
         utterance.rate = Math.max(0.7, rate * 0.92);
       } else if (voiceType === 'ko-alert') {
         utterance.pitch = 1.22;
         utterance.rate = Math.min(1.4, rate * 1.12);
       } else {
-        // Female Announcer
         utterance.pitch = 1.05;
         utterance.rate = rate;
       }
@@ -125,7 +120,7 @@ class TTSEngine {
   }
 
   /**
-   * Fetch real human Korean speech MP3 audio buffer for video recording
+   * Fetch and decode real speech AudioBuffer with multi-strategy fallbacks
    */
   async getTTSAudioBuffer(text, voiceType = 'ko-standard-female', rate = 1.0) {
     if (!text || text.trim() === '') return null;
@@ -139,49 +134,88 @@ class TTSEngine {
     const ctx = this.getAudioContext();
     let rawBuffer = null;
 
-    // Fetch real speech audio via multi-gateway fallback list
     const encoded = encodeURIComponent(cleanText);
     const gtxUrl = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=ko&q=${encoded}`;
     const twUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ko&q=${encoded}`;
 
-    const proxyList = [
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(gtxUrl)}`,
-      `https://corsproxy.io/?url=${encodeURIComponent(gtxUrl)}`,
-      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(gtxUrl)}`,
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(twUrl)}`
-    ];
+    // Strategy 1: AllOrigins raw & JSON mode
+    try {
+      const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(gtxUrl)}`, { signal: AbortSignal.timeout(3500) });
+      if (res.ok) {
+        const ab = await res.arrayBuffer();
+        if (ab && ab.byteLength > 200) {
+          rawBuffer = await ctx.decodeAudioData(ab);
+        }
+      }
+    } catch (e) {}
 
-    for (const pUrl of proxyList) {
+    // Strategy 2: AllOrigins JSON Base64 mode
+    if (!rawBuffer) {
       try {
-        const res = await fetch(pUrl, { signal: AbortSignal.timeout(3500) });
+        const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(gtxUrl)}`, { signal: AbortSignal.timeout(3500) });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.contents && json.contents.startsWith('data:')) {
+            const dataRes = await fetch(json.contents);
+            const ab = await dataRes.arrayBuffer();
+            if (ab && ab.byteLength > 200) {
+              rawBuffer = await ctx.decodeAudioData(ab);
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Strategy 3: CorsProxy.io
+    if (!rawBuffer) {
+      try {
+        const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(gtxUrl)}`, { signal: AbortSignal.timeout(3500) });
         if (res.ok) {
           const ab = await res.arrayBuffer();
           if (ab && ab.byteLength > 200) {
             rawBuffer = await ctx.decodeAudioData(ab);
-            break;
           }
         }
-      } catch (err) {
-        // try next proxy
-      }
+      } catch (e) {}
     }
 
+    // Strategy 4: Codetabs proxy
     if (!rawBuffer) {
-      // Create a clean silent buffer with a subtle notification tone (NO robot buzzing!)
-      console.warn("Online audio fetch unavailable. Using silent carrier buffer for:", cleanText.slice(0, 15));
-      const dur = this.estimateDuration(cleanText, rate);
-      rawBuffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
+      try {
+        const res = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(twUrl)}`, { signal: AbortSignal.timeout(3500) });
+        if (res.ok) {
+          const ab = await res.arrayBuffer();
+          if (ab && ab.byteLength > 200) {
+            rawBuffer = await ctx.decodeAudioData(ab);
+          }
+        }
+      } catch (e) {}
     }
 
-    // Process Voice Character (Male vs Female vs Alert)
+    // Strategy 5: Direct Google TTS
+    if (!rawBuffer) {
+      try {
+        const res = await fetch(gtxUrl, { signal: AbortSignal.timeout(3000) });
+        if (res.ok) {
+          const ab = await res.arrayBuffer();
+          if (ab && ab.byteLength > 200) {
+            rawBuffer = await ctx.decodeAudioData(ab);
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Fallback: If network proxies are offline, create clear melodic safety chime carrier
+    if (!rawBuffer) {
+      console.warn("Using melodic carrier buffer for:", cleanText.slice(0, 15));
+      rawBuffer = this.createNotificationChimeBuffer(cleanText, rate);
+    }
+
     const finalBuffer = this.processVoiceCharacter(rawBuffer, voiceType, rate);
     this.ttsBufferCache.set(cacheKey, finalBuffer);
     return finalBuffer;
   }
 
-  /**
-   * Clean voice character processing without distortions
-   */
   processVoiceCharacter(buffer, voiceType, rate) {
     const ctx = this.getAudioContext();
     const sr = buffer.sampleRate;
@@ -189,9 +223,9 @@ class TTSEngine {
 
     let pitchScale = 1.0;
     if (voiceType === 'ko-standard-male') {
-      pitchScale = 0.82; // -3.5 semitones male warmth
+      pitchScale = 0.85; // Male resonance
     } else if (voiceType === 'ko-alert') {
-      pitchScale = 1.12; // +2 semitones crisp alert
+      pitchScale = 1.12; // Alert clarity
     }
 
     const outLen = Math.floor(buffer.length / pitchScale);
@@ -206,7 +240,6 @@ class TTSEngine {
       if (idx + 1 < inData.length) {
         let val = inData[idx] * (1 - frac) + inData[idx + 1] * frac;
 
-        // Smooth anti-pop envelope
         if (i < 400) {
           val *= (i / 400);
         } else if (i > outLen - 800) {
@@ -220,14 +253,72 @@ class TTSEngine {
     return outBuffer;
   }
 
+  createNotificationChimeBuffer(text, rate = 1.0) {
+    const ctx = this.getAudioContext();
+    const sr = ctx.sampleRate;
+    const dur = this.estimateDuration(text, rate);
+    const buffer = ctx.createBuffer(1, Math.ceil(sr * dur), sr);
+    const data = buffer.getChannelData(0);
+
+    const chimeDur = 0.4;
+    const chimeSamples = Math.floor(sr * chimeDur);
+    for (let i = 0; i < chimeSamples && i < data.length; i++) {
+      const t = i / sr;
+      const freq = 659.25; // E5 tone
+      const env = Math.exp(-t * 8);
+      data[i] = Math.sin(2 * Math.PI * freq * t) * env * 0.15;
+    }
+
+    return buffer;
+  }
+
   /**
-   * Load user custom BGM file
+   * Card-level Microphone Audio Recording
    */
-  async loadCustomBgm(file) {
+  async startMicRecording() {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    this.recordedAudioChunks = [];
+    this.mediaRecorder = new MediaRecorder(stream);
+    this.mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) this.recordedAudioChunks.push(e.data);
+    };
+    this.mediaRecorder.start();
+    this.isRecordingMic = true;
+  }
+
+  async stopMicRecording() {
+    return new Promise((resolve, reject) => {
+      if (!this.mediaRecorder) return reject(new Error("녹음이 진행 중이지 않습니다."));
+      this.mediaRecorder.onstop = async () => {
+        try {
+          const blob = new Blob(this.recordedAudioChunks, { type: 'audio/webm' });
+          const arrayBuffer = await blob.arrayBuffer();
+          const ctx = this.getAudioContext();
+          const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+          this.isRecordingMic = false;
+          resolve({ blob, audioBuffer, duration: audioBuffer.duration });
+        } catch (err) {
+          reject(err);
+        }
+      };
+      this.mediaRecorder.stop();
+      this.mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    });
+  }
+
+  /**
+   * Load custom audio file for a card or BGM
+   */
+  async decodeAudioFile(file) {
     if (!file) return null;
     const ctx = this.getAudioContext();
     const arrayBuffer = await file.arrayBuffer();
     const decoded = await ctx.decodeAudioData(arrayBuffer);
+    return decoded;
+  }
+
+  async loadCustomBgm(file) {
+    const decoded = await this.decodeAudioFile(file);
     this.customBgmBuffer = decoded;
     this.customBgmName = file.name;
     return decoded;
@@ -257,8 +348,8 @@ class TTSEngine {
         freqs.forEach((f, idx) => {
           const lfo = 0.5 + 0.5 * Math.sin(2 * Math.PI * 0.12 * t + idx);
           const sine = Math.sin(2 * Math.PI * f * t);
-          sampleL += sine * lfo * 0.08;
-          sampleR += Math.sin(2 * Math.PI * (f * 1.003) * t) * lfo * 0.08;
+          sampleL += sine * lfo * 0.06;
+          sampleR += Math.sin(2 * Math.PI * (f * 1.003) * t) * lfo * 0.06;
         });
 
         let env = 1.0;
@@ -277,7 +368,7 @@ class TTSEngine {
         const fIdx = Math.floor((t * 2) % freqs.length);
         const f = freqs[fIdx];
 
-        const pulse = Math.sin(2 * Math.PI * f * t) * decay * 0.12;
+        const pulse = Math.sin(2 * Math.PI * f * t) * decay * 0.08;
         let env = 1.0;
         if (t < 1.0) env = t;
         if (t > duration - 2.0) env = Math.max(0, (duration - t) / 2.0);
@@ -300,7 +391,7 @@ class TTSEngine {
       osc.frequency.setValueAtTime(587.33, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(880.00, ctx.currentTime + 0.12);
 
-      gain.gain.setValueAtTime(0.06, ctx.currentTime);
+      gain.gain.setValueAtTime(0.04, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
 
       osc.connect(gain);
