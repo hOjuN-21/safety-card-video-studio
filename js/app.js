@@ -28,7 +28,6 @@ class SafetyCardApp {
     this.cardCountBadge = document.getElementById('card-count-badge');
     this.btnClearAll = document.getElementById('btn-clear-all');
 
-    this.voiceSelect = document.getElementById('voice-select');
     this.btnTestVoice = document.getElementById('btn-test-voice');
     this.speechRateInput = document.getElementById('speech-rate');
     this.rateVal = document.getElementById('rate-val');
@@ -151,7 +150,7 @@ class SafetyCardApp {
     });
 
     this.btnTestVoice.addEventListener('click', () => {
-      window.ttsEngine.speak('안전카드뉴스 음성 합성을 테스트합니다. 오늘도 안전한 하루 되십시오.', this.voiceSelect.value, parseFloat(this.speechRateInput.value));
+      window.ttsEngine.speak('안전카드뉴스 음성 나레이션을 테스트합니다. 오늘도 안전한 하루 되십시오.', parseFloat(this.speechRateInput.value));
     });
 
     this.aspectRatioSelect.addEventListener('change', () => {
@@ -179,7 +178,7 @@ class SafetyCardApp {
     this.btnPreviewCurrentSpeech.addEventListener('click', () => {
       if (this.cards.length === 0) return;
       const card = this.cards[this.currentPreviewIndex];
-      window.ttsEngine.speak(card.script, this.voiceSelect.value, parseFloat(this.speechRateInput.value));
+      window.ttsEngine.speak(card.script, parseFloat(this.speechRateInput.value));
     });
 
     this.btnStartRender.addEventListener('click', () => this.startRendering());
@@ -527,7 +526,7 @@ class SafetyCardApp {
           src.start();
         } else {
           const rate = parseFloat(this.speechRateInput.value);
-          window.ttsEngine.speak(card.script, this.voiceSelect.value, rate);
+          window.ttsEngine.speak(card.script, rate);
         }
       });
     });
@@ -703,7 +702,6 @@ class SafetyCardApp {
 
     const settings = {
       aspectRatio: this.aspectRatioSelect.value,
-      voiceType: this.voiceSelect.value,
       speechRate: parseFloat(this.speechRateInput.value),
       cardPause: parseFloat(this.cardPauseInput.value),
       showSubtitles: this.subtitleToggle.checked,

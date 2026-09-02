@@ -48,28 +48,20 @@ class TTSEngine {
     return Math.max(2.0, Math.round((baseSec + pauseSec) * 10) / 10);
   }
 
-  getBestVoice(voiceType = 'ko-standard-female') {
+  getBestVoice() {
     const voices = this.cachedVoices.length > 0 ? this.cachedVoices : (window.speechSynthesis ? window.speechSynthesis.getVoices() : []);
     const koVoices = voices.filter(v => v.lang && (v.lang.startsWith('ko') || v.lang.includes('KR') || v.name.includes('Korean') || v.name.includes('한국어')));
 
-    if (voiceType === 'ko-standard-male') {
-      const maleVoice = koVoices.find(v => 
-        v.name.includes('InJoon') || v.name.includes('Male') || v.name.includes('남성') || 
-        v.name.includes('Hyunsu') || v.name.includes('민호') || v.name.includes('David')
-      );
-      if (maleVoice) return maleVoice;
-    } else if (voiceType === 'ko-standard-female') {
-      const femaleVoice = koVoices.find(v => 
-        v.name.includes('SunHi') || v.name.includes('Heami') || v.name.includes('Female') || 
-        v.name.includes('여성') || v.name.includes('Yuna') || v.name.includes('Google') || v.name.includes('혜미')
-      );
-      if (femaleVoice) return femaleVoice;
-    }
+    const preferred = koVoices.find(v => 
+      v.name.includes('SunHi') || v.name.includes('Heami') || v.name.includes('Female') || 
+      v.name.includes('여성') || v.name.includes('Yuna') || v.name.includes('Google') || v.name.includes('혜미')
+    );
+    if (preferred) return preferred;
 
     return koVoices[0] || voices[0] || null;
   }
 
-  speak(text, voiceType = 'ko-standard-female', rate = 1.0, onEnd = null) {
+  speak(text, rate = 1.0, onEnd = null) {
     if (!window.speechSynthesis) {
       if (onEnd) onEnd();
       return;
@@ -85,20 +77,11 @@ class TTSEngine {
       const utterance = new SpeechSynthesisUtterance(text.trim());
       utterance.lang = 'ko-KR';
 
-      const voice = this.getBestVoice(voiceType);
+      const voice = this.getBestVoice();
       if (voice) utterance.voice = voice;
 
-      if (voiceType === 'ko-standard-male') {
-        const isMaleNative = voice && (voice.name.includes('InJoon') || voice.name.includes('Male') || voice.name.includes('남성'));
-        utterance.pitch = isMaleNative ? 0.95 : 0.72;
-        utterance.rate = Math.max(0.7, rate * 0.92);
-      } else if (voiceType === 'ko-alert') {
-        utterance.pitch = 1.22;
-        utterance.rate = Math.min(1.4, rate * 1.12);
-      } else {
-        utterance.pitch = 1.05;
-        utterance.rate = rate;
-      }
+      utterance.pitch = 1.05;
+      utterance.rate = rate;
 
       utterance.onend = () => { if (onEnd) onEnd(); };
       utterance.onerror = (e) => {
@@ -122,10 +105,10 @@ class TTSEngine {
   /**
    * Fetch and decode real speech AudioBuffer with multi-strategy fallbacks
    */
-  async getTTSAudioBuffer(text, voiceType = 'ko-standard-female', rate = 1.0) {
+  async getTTSAudioBuffer(text, rate = 1.0) {
     if (!text || text.trim() === '') return null;
     const cleanText = text.trim();
-    const cacheKey = `${voiceType}_${cleanText}_${rate}`;
+    const cacheKey = `${cleanText}_${rate}`;
 
     if (this.ttsBufferCache.has(cacheKey)) {
       return this.ttsBufferCache.get(cacheKey);
@@ -211,46 +194,8 @@ class TTSEngine {
       rawBuffer = this.createNotificationChimeBuffer(cleanText, rate);
     }
 
-    const finalBuffer = this.processVoiceCharacter(rawBuffer, voiceType, rate);
-    this.ttsBufferCache.set(cacheKey, finalBuffer);
-    return finalBuffer;
-  }
-
-  processVoiceCharacter(buffer, voiceType, rate) {
-    const ctx = this.getAudioContext();
-    const sr = buffer.sampleRate;
-    const inData = buffer.getChannelData(0);
-
-    let pitchScale = 1.0;
-    if (voiceType === 'ko-standard-male') {
-      pitchScale = 0.85; // Male resonance
-    } else if (voiceType === 'ko-alert') {
-      pitchScale = 1.12; // Alert clarity
-    }
-
-    const outLen = Math.floor(buffer.length / pitchScale);
-    const outBuffer = ctx.createBuffer(1, Math.max(1, outLen), sr);
-    const outData = outBuffer.getChannelData(0);
-
-    for (let i = 0; i < outLen; i++) {
-      const srcPos = i * pitchScale;
-      const idx = Math.floor(srcPos);
-      const frac = srcPos - idx;
-
-      if (idx + 1 < inData.length) {
-        let val = inData[idx] * (1 - frac) + inData[idx + 1] * frac;
-
-        if (i < 400) {
-          val *= (i / 400);
-        } else if (i > outLen - 800) {
-          val *= Math.max(0, (outLen - i) / 800);
-        }
-
-        outData[i] = val;
-      }
-    }
-
-    return outBuffer;
+    this.ttsBufferCache.set(cacheKey, rawBuffer);
+    return rawBuffer;
   }
 
   createNotificationChimeBuffer(text, rate = 1.0) {

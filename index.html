@@ -132,28 +132,27 @@
       <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 shadow-xl backdrop-blur-sm space-y-5">
         <div class="flex items-center gap-2.5">
           <span class="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs border border-emerald-500/40">2</span>
-          <h2 class="font-bold text-slate-100 text-base">AI 음성 성우 & 배경음악(BGM) 설정</h2>
+          <h2 class="font-bold text-slate-100 text-base">AI 음성 나레이션 & 배경음악(BGM) 설정</h2>
         </div>
 
         <!-- Grid for Voice Settings -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- Voice Selector -->
+          <!-- Voice Info & Test -->
           <div class="space-y-1.5">
             <label class="block text-xs font-semibold text-slate-300">
-              <i data-lucide="volume-2" class="w-3.5 h-3.5 inline mr-1 text-emerald-400"></i>AI 음성 성우 선택 (영상 파일 내 직접 합성)
+              <i data-lucide="volume-2" class="w-3.5 h-3.5 inline mr-1 text-emerald-400"></i>AI 음성 나레이션 (영상 파일 내 직접 합성)
             </label>
-            <div class="flex gap-2">
-              <select id="voice-select" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
-                <option value="ko-standard-female" selected>🇰🇷 한국어 표준 여성 아나운서 (차분한 안내)</option>
-                <option value="ko-standard-male">🇰🇷 한국어 신뢰감 있는 남성 성우 (안전 브리핑)</option>
-                <option value="ko-alert">🇰🇷 한국어 또렷하고 명확한 경고 톤</option>
-              </select>
-              <button id="btn-test-voice" class="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium border border-slate-700 flex items-center gap-1" title="음성 샘플 테스트">
+            <div class="flex items-center justify-between bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200">
+              <span class="flex items-center gap-1.5 font-medium text-emerald-300">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                🇰🇷 한국어 표준 AI 아나운서 음성
+              </span>
+              <button id="btn-test-voice" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 rounded-md text-xs font-medium border border-slate-700 flex items-center gap-1 transition-all" title="음성 샘플 테스트">
                 <i data-lucide="play" class="w-3.5 h-3.5 text-emerald-400"></i>
-                <span>테스트</span>
+                <span>음성 테스트</span>
               </button>
             </div>
-            <p class="text-[11px] text-emerald-400 font-medium">✨ 비디오 파일에 음성 오디오 트랙이 100% 직접 인코딩됩니다.</p>
+            <p class="text-[11px] text-slate-400 font-normal">카드별 대본이 AI 음성으로 합성되어 비디오 파일 오디오 트랙에 직접 결합됩니다.</p>
           </div>
 
           <!-- Speech Rate & Pitch -->
@@ -421,10 +420,10 @@
   </div>
 
   <!-- SCRIPTS -->
-  <script src="js/sample-data.js?v=2.4.0"></script>
-  <script src="js/tts-engine.js?v=2.4.0"></script>
-  <script src="js/video-renderer.js?v=2.4.0"></script>
-  <script src="js/app.js?v=2.4.0"></script>
+  <script src="js/sample-data.js?v=2.5.0"></script>
+  <script src="js/tts-engine.js?v=2.5.0"></script>
+  <script src="js/video-renderer.js?v=2.5.0"></script>
+  <script src="js/app.js?v=2.5.0"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
