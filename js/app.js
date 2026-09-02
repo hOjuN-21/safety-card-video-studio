@@ -41,6 +41,14 @@ class SafetyCardApp {
     this.btnVerifyApiKey = document.getElementById('btn-verify-api-key');
     this.apiKeyTestFeedback = document.getElementById('api-key-test-feedback');
 
+    // TTS Usage & Limit UI
+    this.ttsUsageBar = document.getElementById('tts-usage-bar');
+    this.ttsUsageText = document.getElementById('tts-usage-text');
+    this.ttsUsageFill = document.getElementById('tts-usage-fill');
+    this.ttsLimitModal = document.getElementById('tts-limit-modal');
+    this.ttsLimitChars = document.getElementById('tts-limit-chars');
+    this.btnCloseTtsLimit = document.getElementById('btn-close-tts-limit');
+
     this.speechRateInput = document.getElementById('speech-rate');
     this.rateVal = document.getElementById('rate-val');
     this.cardPauseInput = document.getElementById('card-pause');
@@ -83,6 +91,7 @@ class SafetyCardApp {
     this.btnConfirmHelp = document.getElementById('btn-confirm-help');
 
     this.updateApiKeyStatusUI();
+    this.updateTtsUsageUI();
   }
 
   updateApiKeyStatusUI() {
@@ -94,6 +103,41 @@ class SafetyCardApp {
       if (this.apiKeyStatusLabel) this.apiKeyStatusLabel.textContent = "Google Cloud API 키 설정";
       if (this.btnApiKeyModal) this.btnApiKeyModal.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all";
       if (this.btnDeleteApiKey) this.btnDeleteApiKey.classList.add('hidden');
+  }
+
+  updateTtsUsageUI() {
+    if (!this.ttsUsageBar) return;
+    
+    if (window.ttsEngine.hasApiKey()) {
+      this.ttsUsageBar.classList.remove('hidden');
+      const usage = window.ttsEngine.getDailyUsageInfo();
+      if (this.ttsUsageText) this.ttsUsageText.textContent = `${usage.used.toLocaleString()} / ${usage.limit.toLocaleString()}자`;
+      if (this.ttsUsageFill) {
+        this.ttsUsageFill.style.width = `${Math.min(100, usage.percent)}%`;
+        if (usage.percent >= 100) {
+          this.ttsUsageFill.className = "h-full bg-rose-500 rounded-full transition-all duration-300";
+          this.ttsUsageText.className = "font-mono text-rose-400";
+        } else if (usage.percent >= 80) {
+          this.ttsUsageFill.className = "h-full bg-amber-500 rounded-full transition-all duration-300";
+          this.ttsUsageText.className = "font-mono text-amber-400";
+        } else {
+          this.ttsUsageFill.className = "h-full bg-emerald-500 rounded-full transition-all duration-300";
+          this.ttsUsageText.className = "font-mono text-emerald-400";
+        }
+      }
+    } else {
+      this.ttsUsageBar.classList.add('hidden');
+    }
+  }
+
+  showTtsLimitModalIfNeeded() {
+    if (window.ttsEngine.hasApiKey()) {
+      const usage = window.ttsEngine.getDailyUsageInfo();
+      if (usage.percent >= 100 && !this.ttsLimitModalShown) {
+        if (this.ttsLimitChars) this.ttsLimitChars.textContent = `${usage.limit.toLocaleString()}자`;
+        if (this.ttsLimitModal) this.ttsLimitModal.classList.remove('hidden');
+        this.ttsLimitModalShown = true;
+      }
     }
   }
 
@@ -190,6 +234,12 @@ class SafetyCardApp {
       this.btnCancelApiKey.addEventListener('click', () => this.apiKeyModal.classList.add('hidden'));
     }
 
+    if (this.btnCloseTtsLimit) {
+      this.btnCloseTtsLimit.addEventListener('click', () => {
+        this.ttsLimitModal.classList.add('hidden');
+      });
+    }
+
     if (this.btnVerifyApiKey) {
       this.btnVerifyApiKey.addEventListener('click', async () => {
         const key = this.inputGoogleApiKey.value.trim();
@@ -223,6 +273,7 @@ class SafetyCardApp {
         const key = this.inputGoogleApiKey.value.trim();
         window.ttsEngine.setApiKey(key);
         this.updateApiKeyStatusUI();
+        this.updateTtsUsageUI();
         this.apiKeyModal.classList.add('hidden');
         if (key) {
           alert("✨ Google Cloud TTS API 키가 저장되었습니다.\n성우를 변경하며 [테스트] 버튼을 눌러보세요!");
@@ -238,6 +289,7 @@ class SafetyCardApp {
           window.ttsEngine.setApiKey("");
           this.inputGoogleApiKey.value = "";
           this.updateApiKeyStatusUI();
+          this.updateTtsUsageUI();
           this.apiKeyModal.classList.add('hidden');
           alert("API 키가 삭제되었습니다.");
         }
@@ -246,7 +298,10 @@ class SafetyCardApp {
 
     this.btnTestVoice.addEventListener('click', () => {
       const voiceName = this.voiceSelect ? this.voiceSelect.value : 'ko-KR-Neural2-A';
-      window.ttsEngine.speak('안전카드뉴스 Google AI 음성 합성을 테스트합니다. 오늘도 안전한 하루 되십시오.', voiceName, parseFloat(this.speechRateInput.value));
+      window.ttsEngine.speak('안전카드뉴스 Google AI 음성 합성을 테스트합니다. 오늘도 안전한 하루 되십시오.', voiceName, parseFloat(this.speechRateInput.value), () => {
+        this.updateTtsUsageUI();
+        this.showTtsLimitModalIfNeeded();
+      });
     });
 
     this.aspectRatioSelect.addEventListener('change', () => {
@@ -275,7 +330,10 @@ class SafetyCardApp {
       if (this.cards.length === 0) return;
       const card = this.cards[this.currentPreviewIndex];
       const voiceName = this.voiceSelect ? this.voiceSelect.value : 'ko-KR-Neural2-A';
-      window.ttsEngine.speak(card.script, voiceName, parseFloat(this.speechRateInput.value));
+      window.ttsEngine.speak(card.script, voiceName, parseFloat(this.speechRateInput.value), () => {
+        this.updateTtsUsageUI();
+        this.showTtsLimitModalIfNeeded();
+      });
     });
 
     this.btnStartRender.addEventListener('click', () => this.startRendering());
@@ -624,7 +682,10 @@ class SafetyCardApp {
         } else {
           const rate = parseFloat(this.speechRateInput.value);
           const voiceName = this.voiceSelect ? this.voiceSelect.value : 'ko-KR-Neural2-A';
-          window.ttsEngine.speak(card.script, voiceName, rate);
+          window.ttsEngine.speak(card.script, voiceName, rate, () => {
+            this.updateTtsUsageUI();
+            this.showTtsLimitModalIfNeeded();
+          });
         }
       });
     });

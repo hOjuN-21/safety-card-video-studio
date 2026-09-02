@@ -162,7 +162,16 @@
                 <span>테스트</span>
               </button>
             </div>
-            <p class="text-[11px] text-emerald-400 font-medium">✨ Google Cloud TTS (매월 수백만 자 무료) 연동을 완벽 지원합니다.</p>
+            <div id="tts-usage-bar" class="bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 space-y-1">
+              <div class="flex justify-between items-center text-[11px]">
+                <span class="text-slate-400 font-medium">📊 오늘 AI 음성 사용량</span>
+                <span id="tts-usage-text" class="font-mono text-emerald-400">0 / 30,000자</span>
+              </div>
+              <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div id="tts-usage-fill" class="h-full bg-emerald-500 rounded-full transition-all duration-300" style="width: 0%"></div>
+              </div>
+              <p class="text-[10px] text-slate-500">무료 한도 초과 시 기본 음성으로 자동 전환됩니다.</p>
+            </div>
           </div>
 
           <!-- Speech Rate & Pitch -->
@@ -483,6 +492,28 @@
           </button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- TTS 무료 한도 초과 팝업 -->
+  <div id="tts-limit-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-amber-500/40 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+      <div class="text-center space-y-2">
+        <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-amber-500/15 mx-auto">
+          <svg class="w-7 h-7 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+          </svg>
+        </div>
+        <h3 class="font-bold text-base text-slate-100">오늘의 AI 음성 무료 한도 초과</h3>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          오늘 사용 가능한 Google AI 음성 <strong class="text-amber-400" id="tts-limit-chars">30,000자</strong>를 모두 사용했습니다.<br>
+          과금 방지를 위해 <strong class="text-emerald-400">기본 음성(OS 내장)</strong>으로 자동 전환됩니다.
+        </p>
+        <p class="text-[11px] text-slate-500">내일 자정(00:00)에 자동으로 초기화됩니다.</p>
+      </div>
+      <button id="btn-close-tts-limit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-sm transition-all">
+        확인
+      </button>
     </div>
   </div>
 
