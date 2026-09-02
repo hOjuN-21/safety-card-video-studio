@@ -4,6 +4,9 @@
  */
 
 class TTSEngine {
+  // 일일 사용량 한도 (글자 수) — Neural2 무료: 월 1,000,000자 → 일 약 33,000자, 안전마진 적용
+  static DAILY_CHAR_LIMIT = 30000;
+
   constructor() {
     this.audioCtx = null;
     this.customBgmBuffer = null;
@@ -15,7 +18,55 @@ class TTSEngine {
     this.isRecordingMic = false;
     this.cachedVoices = [];
     this.currentPlayingSource = null;
+    this._loadDailyUsage();
     this.initVoices();
+  }
+
+  /** 일일 사용량 로드 (날짜 바뀌면 리셋) */
+  _loadDailyUsage() {
+    const saved = JSON.parse(localStorage.getItem('tts_daily_usage') || '{}');
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    if (saved.date === today) {
+      this.dailyCharsUsed = saved.chars || 0;
+    } else {
+      this.dailyCharsUsed = 0;
+    }
+    this.dailyDate = today;
+  }
+
+  /** 사용량 저장 */
+  _saveDailyUsage() {
+    localStorage.setItem('tts_daily_usage', JSON.stringify({
+      date: this.dailyDate,
+      chars: this.dailyCharsUsed
+    }));
+  }
+
+  /** 한도 체크 — 초과 시 false 반환 */
+  _canUseChars(text) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (today !== this.dailyDate) {
+      this.dailyCharsUsed = 0;
+      this.dailyDate = today;
+    }
+    return (this.dailyCharsUsed + text.length) <= TTSEngine.DAILY_CHAR_LIMIT;
+  }
+
+  /** 사용량 기록 */
+  _recordUsage(text) {
+    this.dailyCharsUsed += text.length;
+    this._saveDailyUsage();
+  }
+
+  /** 남은 일일 사용량 조회 */
+  getDailyUsageInfo() {
+    this._loadDailyUsage();
+    return {
+      used: this.dailyCharsUsed,
+      limit: TTSEngine.DAILY_CHAR_LIMIT,
+      remaining: Math.max(0, TTSEngine.DAILY_CHAR_LIMIT - this.dailyCharsUsed),
+      percent: Math.round((this.dailyCharsUsed / TTSEngine.DAILY_CHAR_LIMIT) * 100)
+    };
   }
 
   initVoices() {
@@ -149,8 +200,8 @@ class TTSEngine {
       return;
     }
 
-    // 1. If Google Cloud API key is set, try a DIRECT API call (fast, no proxy)
-    if (this.hasApiKey()) {
+    // 1. If Google Cloud API key is set AND daily limit not exceeded, try DIRECT API call
+    if (this.hasApiKey() && this._canUseChars(cleanText)) {
       try {
         const res = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${this.googleApiKey}`, {
           method: 'POST',
@@ -177,6 +228,7 @@ class TTSEngine {
             this.currentPlayingSource = src;
             src.onended = () => { this.currentPlayingSource = null; if (onEnd) onEnd(); };
             src.start();
+            this._recordUsage(cleanText);
             return;
           }
         }
@@ -243,8 +295,8 @@ class TTSEngine {
     let rawBuffer = null;
     let isCloudNeuralSuccess = false;
 
-    // 1. Official Google Cloud Text-to-Speech API
-    if (this.hasApiKey()) {
+    // 1. Official Google Cloud Text-to-Speech API (with daily usage limit)
+    if (this.hasApiKey() && this._canUseChars(cleanText)) {
       try {
         const res = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${this.googleApiKey}`, {
           method: 'POST',
@@ -271,6 +323,7 @@ class TTSEngine {
             for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
             rawBuffer = await ctx.decodeAudioData(bytes.buffer);
             isCloudNeuralSuccess = true;
+            this._recordUsage(cleanText);
           }
         } else {
           const errData = await res.json().catch(() => ({}));
@@ -279,6 +332,8 @@ class TTSEngine {
       } catch (err) {
         console.warn("Google Cloud API fetch error:", err);
       }
+    } else if (this.hasApiKey() && !this._canUseChars(cleanText)) {
+      console.warn(`일일 TTS 사용량 한도 초과 (${this.dailyCharsUsed}/${TTSEngine.DAILY_CHAR_LIMIT}자). 무료 음성으로 대체합니다.`);
     }
 
     // 2. Open Google Speech Gateway Fallback (if Google Cloud API is not active)
