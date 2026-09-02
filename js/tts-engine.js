@@ -138,7 +138,8 @@ class TTSEngine {
   }
 
   /**
-   * Preview speech audio in browser (Google Cloud Neural2 buffer or native speech)
+   * Preview speech audio in browser — instant playback, no long network waits.
+   * Strategy: Google Cloud API (direct, fast) → Native Web Speech (instant fallback)
    */
   async speak(text, voiceName = 'ko-KR-Neural2-A', rate = 1.0, onEnd = null) {
     this.stop();
@@ -148,27 +149,43 @@ class TTSEngine {
       return;
     }
 
-    // 1. Fetch & play authentic AudioBuffer (Google Neural2 or pitch-transformed distinct voice)
-    try {
-      const audioBuf = await this.getTTSAudioBuffer(cleanText, voiceName, rate);
-      if (audioBuf) {
-        const ctx = this.getAudioContext();
-        const src = ctx.createBufferSource();
-        src.buffer = audioBuf;
-        src.connect(ctx.destination);
-        this.currentPlayingSource = src;
-        src.onended = () => {
-          this.currentPlayingSource = null;
-          if (onEnd) onEnd();
-        };
-        src.start();
-        return;
+    // 1. If Google Cloud API key is set, try a DIRECT API call (fast, no proxy)
+    if (this.hasApiKey()) {
+      try {
+        const res = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${this.googleApiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input: { text: cleanText },
+            voice: { languageCode: 'ko-KR', name: voiceName || 'ko-KR-Neural2-A' },
+            audioConfig: { audioEncoding: 'MP3', speakingRate: rate }
+          }),
+          signal: AbortSignal.timeout(5000)
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          if (json.audioContent) {
+            const binary = atob(json.audioContent);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const ctx = this.getAudioContext();
+            const audioBuf = await ctx.decodeAudioData(bytes.buffer.slice(0));
+            const src = ctx.createBufferSource();
+            src.buffer = audioBuf;
+            src.connect(ctx.destination);
+            this.currentPlayingSource = src;
+            src.onended = () => { this.currentPlayingSource = null; if (onEnd) onEnd(); };
+            src.start();
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Google Cloud TTS preview failed, using native speech:", err.message);
       }
-    } catch (err) {
-      console.warn("TTS preview audio buffer fallback:", err);
     }
 
-    // 2. Native Web Speech fallback
+    // 2. Instant fallback: Native Web Speech API (always works, zero latency)
     if (window.speechSynthesis) {
       try {
         window.speechSynthesis.cancel();
@@ -189,9 +206,10 @@ class TTSEngine {
         }
 
         utterance.onend = () => { if (onEnd) onEnd(); };
-        utterance.onerror = () => { if (onEnd) onEnd(); };
+        utterance.onerror = (e) => { console.warn("SpeechSynthesis error:", e); if (onEnd) onEnd(); };
         window.speechSynthesis.speak(utterance);
       } catch (e) {
+        console.warn("Native speech error:", e);
         if (onEnd) onEnd();
       }
     } else {
