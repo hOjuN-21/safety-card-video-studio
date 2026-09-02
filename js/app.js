@@ -151,7 +151,7 @@ class SafetyCardApp {
     });
 
     this.btnTestVoice.addEventListener('click', () => {
-      window.ttsEngine.speakPreview('안전카드뉴스 음성 합성을 테스트합니다. 오늘도 안전한 하루 되십시오.', this.voiceSelect.value, parseFloat(this.speechRateInput.value));
+      window.ttsEngine.speak('안전카드뉴스 음성 합성을 테스트합니다. 오늘도 안전한 하루 되십시오.', this.voiceSelect.value, parseFloat(this.speechRateInput.value));
     });
 
     this.aspectRatioSelect.addEventListener('change', () => {
@@ -179,7 +179,7 @@ class SafetyCardApp {
     this.btnPreviewCurrentSpeech.addEventListener('click', () => {
       if (this.cards.length === 0) return;
       const card = this.cards[this.currentPreviewIndex];
-      window.ttsEngine.speakPreview(card.script, this.voiceSelect.value, parseFloat(this.speechRateInput.value));
+      window.ttsEngine.speak(card.script, this.voiceSelect.value, parseFloat(this.speechRateInput.value));
     });
 
     this.btnStartRender.addEventListener('click', () => this.startRendering());
@@ -482,7 +482,7 @@ class SafetyCardApp {
         const idx = parseInt(e.currentTarget.dataset.index);
         const card = this.cards[idx];
         const rate = parseFloat(this.speechRateInput.value);
-        window.ttsEngine.speakPreview(card.script, this.voiceSelect.value, rate);
+        window.ttsEngine.speak(card.script, this.voiceSelect.value, rate);
       });
     });
 

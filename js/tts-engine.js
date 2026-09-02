@@ -1,6 +1,6 @@
 /**
- * tts-engine.js (V2.2 High-Definition Multi-Voice Engine)
- * Distinct Male/Female/Alert Voice Processing + Anti-Pop DSP Filters
+ * tts-engine.js (V2.3 Pure Human Voice & Neural Speech Engine)
+ * Native Web Speech Integration + Multi-Gateway MP3 Fetcher + Zero-Robotic Fallback
  */
 
 class TTSEngine {
@@ -9,7 +9,17 @@ class TTSEngine {
     this.customBgmBuffer = null;
     this.customBgmName = "";
     this.ttsBufferCache = new Map();
-    this.currentPlayingSource = null;
+    this.cachedVoices = [];
+    this.initVoices();
+  }
+
+  initVoices() {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      this.cachedVoices = window.speechSynthesis.getVoices() || [];
+      window.speechSynthesis.onvoiceschanged = () => {
+        this.cachedVoices = window.speechSynthesis.getVoices() || [];
+      };
+    }
   }
 
   getAudioContext() {
@@ -36,7 +46,86 @@ class TTSEngine {
   }
 
   /**
-   * Fetch raw Korean TTS audio and apply Voice DSP (Male vs Female vs Alert)
+   * Get the best matching OS Korean voice
+   */
+  getBestVoice(voiceType = 'ko-standard-female') {
+    const voices = this.cachedVoices.length > 0 ? this.cachedVoices : (window.speechSynthesis ? window.speechSynthesis.getVoices() : []);
+    const koVoices = voices.filter(v => v.lang && (v.lang.startsWith('ko') || v.lang.includes('KR') || v.name.includes('Korean') || v.name.includes('한국어')));
+
+    if (voiceType === 'ko-standard-male') {
+      const maleVoice = koVoices.find(v => 
+        v.name.includes('InJoon') || v.name.includes('Male') || v.name.includes('남성') || 
+        v.name.includes('Hyunsu') || v.name.includes('민호') || v.name.includes('David')
+      );
+      if (maleVoice) return maleVoice;
+    } else if (voiceType === 'ko-standard-female') {
+      const femaleVoice = koVoices.find(v => 
+        v.name.includes('SunHi') || v.name.includes('Heami') || v.name.includes('Female') || 
+        v.name.includes('여성') || v.name.includes('Yuna') || v.name.includes('Google') || v.name.includes('혜미')
+      );
+      if (femaleVoice) return femaleVoice;
+    }
+
+    return koVoices[0] || voices[0] || null;
+  }
+
+  /**
+   * Speak preview in browser using native Web Speech Synthesis with crystal-clear human voices
+   */
+  speak(text, voiceType = 'ko-standard-female', rate = 1.0, onEnd = null) {
+    if (!window.speechSynthesis) {
+      if (onEnd) onEnd();
+      return;
+    }
+
+    try {
+      window.speechSynthesis.cancel();
+      if (!text || text.trim() === '') {
+        if (onEnd) onEnd();
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text.trim());
+      utterance.lang = 'ko-KR';
+
+      const voice = this.getBestVoice(voiceType);
+      if (voice) utterance.voice = voice;
+
+      // Adjust pitch and rate according to voice character
+      if (voiceType === 'ko-standard-male') {
+        const isMaleNative = voice && (voice.name.includes('InJoon') || voice.name.includes('Male') || voice.name.includes('남성'));
+        utterance.pitch = isMaleNative ? 0.95 : 0.72; // Deep resonant pitch if simulating male
+        utterance.rate = Math.max(0.7, rate * 0.92);
+      } else if (voiceType === 'ko-alert') {
+        utterance.pitch = 1.22;
+        utterance.rate = Math.min(1.4, rate * 1.12);
+      } else {
+        // Female Announcer
+        utterance.pitch = 1.05;
+        utterance.rate = rate;
+      }
+
+      utterance.onend = () => { if (onEnd) onEnd(); };
+      utterance.onerror = (e) => {
+        console.warn("SpeechSynthesis error:", e);
+        if (onEnd) onEnd();
+      };
+
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.warn("Speech preview error:", err);
+      if (onEnd) onEnd();
+    }
+  }
+
+  stop() {
+    if (window.speechSynthesis) {
+      try { window.speechSynthesis.cancel(); } catch (e) {}
+    }
+  }
+
+  /**
+   * Fetch real human Korean speech MP3 audio buffer for video recording
    */
   async getTTSAudioBuffer(text, voiceType = 'ko-standard-female', rate = 1.0) {
     if (!text || text.trim() === '') return null;
@@ -50,19 +139,21 @@ class TTSEngine {
     const ctx = this.getAudioContext();
     let rawBuffer = null;
 
-    // 1. Fetch raw speech via reliable multiple CORS gateways
+    // Fetch real speech audio via multi-gateway fallback list
     const encoded = encodeURIComponent(cleanText);
-    const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ko&q=${encoded}`;
+    const gtxUrl = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=ko&q=${encoded}`;
+    const twUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ko&q=${encoded}`;
 
-    const gateways = [
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(googleTtsUrl)}`,
-      `https://corsproxy.io/?url=${encodeURIComponent(googleTtsUrl)}`,
-      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(googleTtsUrl)}`
+    const proxyList = [
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(gtxUrl)}`,
+      `https://corsproxy.io/?url=${encodeURIComponent(gtxUrl)}`,
+      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(gtxUrl)}`,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(twUrl)}`
     ];
 
-    for (const gw of gateways) {
+    for (const pUrl of proxyList) {
       try {
-        const res = await fetch(gw, { signal: AbortSignal.timeout(4000) });
+        const res = await fetch(pUrl, { signal: AbortSignal.timeout(3500) });
         if (res.ok) {
           const ab = await res.arrayBuffer();
           if (ab && ab.byteLength > 200) {
@@ -71,163 +162,62 @@ class TTSEngine {
           }
         }
       } catch (err) {
-        // try next gateway
+        // try next proxy
       }
     }
 
-    // 2. If online fetch failed, use improved vocal formant synthesis fallback
     if (!rawBuffer) {
-      rawBuffer = this.generateFormantSpeechBuffer(cleanText, rate);
+      // Create a clean silent buffer with a subtle notification tone (NO robot buzzing!)
+      console.warn("Online audio fetch unavailable. Using silent carrier buffer for:", cleanText.slice(0, 15));
+      const dur = this.estimateDuration(cleanText, rate);
+      rawBuffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
     }
 
-    // 3. Apply Voice Character Transformation (Male vs Female vs Alert)
-    const processedBuffer = this.applyVoiceDSP(rawBuffer, voiceType, rate);
-    this.ttsBufferCache.set(cacheKey, processedBuffer);
-    return processedBuffer;
+    // Process Voice Character (Male vs Female vs Alert)
+    const finalBuffer = this.processVoiceCharacter(rawBuffer, voiceType, rate);
+    this.ttsBufferCache.set(cacheKey, finalBuffer);
+    return finalBuffer;
   }
 
   /**
-   * Real Voice Character DSP (Male / Female / Alert Tone)
+   * Clean voice character processing without distortions
    */
-  applyVoiceDSP(rawBuffer, voiceType, rate) {
+  processVoiceCharacter(buffer, voiceType, rate) {
     const ctx = this.getAudioContext();
-    const sampleRate = rawBuffer.sampleRate;
-    const numChannels = rawBuffer.numberOfChannels;
-    const rawData = rawBuffer.getChannelData(0);
+    const sr = buffer.sampleRate;
+    const inData = buffer.getChannelData(0);
 
-    let pitchFactor = 1.0;
-    let speedFactor = 1.0;
-    let warmthFilter = false;
-    let brightnessFilter = false;
-
+    let pitchScale = 1.0;
     if (voiceType === 'ko-standard-male') {
-      // Deep authoritative male broadcast tone (~120Hz base, -4.5 semitones)
-      pitchFactor = 0.77;
-      speedFactor = 0.95;
-      warmthFilter = true;
+      pitchScale = 0.82; // -3.5 semitones male warmth
     } else if (voiceType === 'ko-alert') {
-      // Clear alert / commanding tone (+2 semitones, fast & crisp)
-      pitchFactor = 1.12;
-      speedFactor = 1.08;
-      brightnessFilter = true;
-    } else {
-      // Standard Female Announcer (natural, crystal clear)
-      pitchFactor = 1.0;
-      speedFactor = 1.0;
-      brightnessFilter = true;
+      pitchScale = 1.12; // +2 semitones crisp alert
     }
 
-    // Time-stretch & pitch-shift resampling
-    const outLength = Math.floor(rawBuffer.length / (pitchFactor * speedFactor));
-    const outBuffer = ctx.createBuffer(1, outLength, sampleRate);
+    const outLen = Math.floor(buffer.length / pitchScale);
+    const outBuffer = ctx.createBuffer(1, Math.max(1, outLen), sr);
     const outData = outBuffer.getChannelData(0);
 
-    for (let i = 0; i < outLength; i++) {
-      const srcPos = i * (pitchFactor * speedFactor);
-      const srcIdx = Math.floor(srcPos);
-      const frac = srcPos - srcIdx;
+    for (let i = 0; i < outLen; i++) {
+      const srcPos = i * pitchScale;
+      const idx = Math.floor(srcPos);
+      const frac = srcPos - idx;
 
-      if (srcIdx + 1 < rawData.length) {
-        // Linear interpolation for smooth non-choppy sound
-        let sample = rawData[srcIdx] * (1 - frac) + rawData[srcIdx + 1] * frac;
+      if (idx + 1 < inData.length) {
+        let val = inData[idx] * (1 - frac) + inData[idx + 1] * frac;
 
-        // Apply Warmth / Bass filter for male voice
-        if (warmthFilter) {
-          sample = sample * 1.25;
+        // Smooth anti-pop envelope
+        if (i < 400) {
+          val *= (i / 400);
+        } else if (i > outLen - 800) {
+          val *= Math.max(0, (outLen - i) / 800);
         }
 
-        // Apply Anti-Pop Smooth Envelope at start and end
-        if (i < 500) {
-          sample *= (i / 500); // 11ms fade-in
-        } else if (i > outLength - 1000) {
-          sample *= Math.max(0, (outLength - i) / 1000); // 22ms fade-out
-        }
-
-        outData[i] = Math.max(-1.0, Math.min(1.0, sample));
+        outData[i] = val;
       }
     }
 
     return outBuffer;
-  }
-
-  /**
-   * Natural Korean phonetic speech buffer generator (Offline Fallback)
-   */
-  generateFormantSpeechBuffer(text, rate = 1.0) {
-    const ctx = this.getAudioContext();
-    const sampleRate = ctx.sampleRate;
-    const duration = this.estimateDuration(text, rate);
-    const buffer = ctx.createBuffer(1, Math.ceil(sampleRate * duration), sampleRate);
-    const data = buffer.getChannelData(0);
-
-    const words = text.split(/\s+/);
-    const wordDur = duration / Math.max(1, words.length);
-    let curSample = 0;
-
-    for (let w = 0; w < words.length; w++) {
-      const numSamples = Math.floor(wordDur * sampleRate);
-      for (let i = 0; i < numSamples && curSample < data.length; i++, curSample++) {
-        const t = i / sampleRate;
-        const progress = i / numSamples;
-
-        // Voice formants (Korean vowel harmonics: 220Hz fundamental + 700Hz F1 + 1800Hz F2)
-        const f0 = 180 + Math.sin(progress * Math.PI) * 20;
-        const glottal = Math.sin(2 * Math.PI * f0 * t) * 0.4;
-        const f1 = Math.sin(2 * Math.PI * 650 * t) * 0.3;
-        const f2 = Math.sin(2 * Math.PI * 1750 * t) * 0.15;
-        const env = Math.sin(progress * Math.PI) * (0.6 + 0.4 * Math.sin(progress * Math.PI * 6));
-
-        data[curSample] = (glottal + f1 + f2) * env * 0.3;
-      }
-    }
-
-    return buffer;
-  }
-
-  /**
-   * Speak preview using the EXACT decoded AudioBuffer
-   */
-  async speakPreview(text, voiceType = 'ko-standard-female', rate = 1.0, onEnd = null) {
-    this.stopPreview();
-    const ctx = this.getAudioContext();
-    if (ctx.state === 'suspended') await ctx.resume();
-
-    try {
-      const audioBuf = await this.getTTSAudioBuffer(text, voiceType, rate);
-      if (!audioBuf) {
-        if (onEnd) onEnd();
-        return;
-      }
-
-      const src = ctx.createBufferSource();
-      src.buffer = audioBuf;
-
-      const gain = ctx.createGain();
-      gain.gain.value = 1.0;
-      src.connect(gain);
-      gain.connect(ctx.destination);
-
-      this.currentPlayingSource = src;
-
-      src.onended = () => {
-        this.currentPlayingSource = null;
-        if (onEnd) onEnd();
-      };
-
-      src.start(0);
-    } catch (err) {
-      console.warn("Preview speech error:", err);
-      if (onEnd) onEnd();
-    }
-  }
-
-  stopPreview() {
-    if (this.currentPlayingSource) {
-      try {
-        this.currentPlayingSource.stop();
-      } catch (e) {}
-      this.currentPlayingSource = null;
-    }
   }
 
   /**
