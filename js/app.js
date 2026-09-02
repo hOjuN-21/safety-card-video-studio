@@ -103,6 +103,7 @@ class SafetyCardApp {
       if (this.apiKeyStatusLabel) this.apiKeyStatusLabel.textContent = "Google Cloud API 키 설정";
       if (this.btnApiKeyModal) this.btnApiKeyModal.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all";
       if (this.btnDeleteApiKey) this.btnDeleteApiKey.classList.add('hidden');
+    }
   }
 
   updateTtsUsageUI() {
