@@ -6,13 +6,21 @@
 class TTSEngine {
   // 일일 사용량 한도 (글자 수) — Neural2 무료: 월 1,000,000자 → 일 약 33,000자, 안전마진 적용
   static DAILY_CHAR_LIMIT = 30000;
+  
+  static ENCRYPTED_PAYLOAD = {
+    salt: "Msi45FWKSXRVI2pq7epCNg==",
+    iv: "WTXCychN+UoXdB12",
+    encrypted: "5YuxjmkGhtDL41keOX8YEKrxLKFzII4QopNiaFPmygY2nf6Nz18X",
+    authTag: "gZXC1f7XdfLVrLVIIGOZWg=="
+  };
 
   constructor() {
     this.audioCtx = null;
     this.customBgmBuffer = null;
     this.customBgmName = "";
     this.ttsBufferCache = new Map();
-    this.googleApiKey = localStorage.getItem('google_tts_api_key') || "";
+    // Only use sessionStorage so it's wiped when tab is closed
+    this.googleApiKey = sessionStorage.getItem('google_tts_api_key') || "";
     this.mediaRecorder = null;
     this.recordedAudioChunks = [];
     this.isRecordingMic = false;
@@ -82,11 +90,80 @@ class TTSEngine {
   setApiKey(key) {
     this.googleApiKey = (key || "").trim();
     if (this.googleApiKey) {
-      localStorage.setItem('google_tts_api_key', this.googleApiKey);
+      sessionStorage.setItem('google_tts_api_key', this.googleApiKey);
     } else {
-      localStorage.removeItem('google_tts_api_key');
+      sessionStorage.removeItem('google_tts_api_key');
     }
     this.ttsBufferCache.clear();
+  }
+
+  // Base64 helper
+  _base64ToArrayBuffer(base64) {
+    const binary_string = atob(base64);
+    const len = binary_string.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binary_string.charCodeAt(i);
+    }
+    return bytes.buffer;
+  }
+
+  async verifyTeamPassword(password) {
+    const crypto = globalThis.crypto;
+    const payload = TTSEngine.ENCRYPTED_PAYLOAD;
+    const enc = new TextEncoder();
+    
+    try {
+      const saltBuf = this._base64ToArrayBuffer(payload.salt);
+      const ivBuf = this._base64ToArrayBuffer(payload.iv);
+      
+      const encBytes = new Uint8Array(this._base64ToArrayBuffer(payload.encrypted));
+      const tagBytes = new Uint8Array(this._base64ToArrayBuffer(payload.authTag));
+      const combined = new Uint8Array(encBytes.length + tagBytes.length);
+      combined.set(encBytes);
+      combined.set(tagBytes, encBytes.length);
+
+      const keyMaterial = await crypto.subtle.importKey(
+        "raw",
+        enc.encode(password),
+        "PBKDF2",
+        false,
+        ["deriveKey"]
+      );
+
+      const key = await crypto.subtle.deriveKey(
+        {
+          name: "PBKDF2",
+          salt: saltBuf,
+          iterations: 100000,
+          hash: "SHA-256"
+        },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["decrypt"]
+      );
+
+      const decrypted = await crypto.subtle.decrypt(
+        {
+          name: "AES-GCM",
+          iv: ivBuf
+        },
+        key,
+        combined
+      );
+
+      const dec = new TextDecoder();
+      const apiKey = dec.decode(decrypted);
+      this.setApiKey(apiKey);
+      
+      // Store the password hash or something? No, we just set a flag in sessionStorage to keep them logged in during the session
+      sessionStorage.setItem('team_tts_auth_success', 'true');
+      return true;
+    } catch (e) {
+      console.warn("Invalid team password", e);
+      return false;
+    }
   }
 
   getApiKey() {
