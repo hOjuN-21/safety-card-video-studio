@@ -28,7 +28,17 @@ class SafetyCardApp {
     this.cardCountBadge = document.getElementById('card-count-badge');
     this.btnClearAll = document.getElementById('btn-clear-all');
 
+    this.voiceSelect = document.getElementById('voice-select');
     this.btnTestVoice = document.getElementById('btn-test-voice');
+    this.btnApiKeyModal = document.getElementById('btn-api-key-modal');
+    this.apiKeyStatusLabel = document.getElementById('api-key-status-label');
+    this.apiKeyModal = document.getElementById('api-key-modal');
+    this.inputGoogleApiKey = document.getElementById('input-google-api-key');
+    this.btnCloseApiKey = document.getElementById('btn-close-api-key');
+    this.btnCancelApiKey = document.getElementById('btn-cancel-api-key');
+    this.btnSaveApiKey = document.getElementById('btn-save-api-key');
+    this.btnDeleteApiKey = document.getElementById('btn-delete-api-key');
+
     this.speechRateInput = document.getElementById('speech-rate');
     this.rateVal = document.getElementById('rate-val');
     this.cardPauseInput = document.getElementById('card-pause');
@@ -69,6 +79,20 @@ class SafetyCardApp {
     this.helpModal = document.getElementById('help-modal');
     this.btnCloseHelp = document.getElementById('btn-close-help');
     this.btnConfirmHelp = document.getElementById('btn-confirm-help');
+
+    this.updateApiKeyStatusUI();
+  }
+
+  updateApiKeyStatusUI() {
+    if (window.ttsEngine.hasApiKey()) {
+      if (this.apiKeyStatusLabel) this.apiKeyStatusLabel.textContent = "Google API 키 연동됨 (Neural2)";
+      if (this.btnApiKeyModal) this.btnApiKeyModal.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 transition-all";
+      if (this.btnDeleteApiKey) this.btnDeleteApiKey.classList.remove('hidden');
+    } else {
+      if (this.apiKeyStatusLabel) this.apiKeyStatusLabel.textContent = "Google Cloud API 키 설정";
+      if (this.btnApiKeyModal) this.btnApiKeyModal.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all";
+      if (this.btnDeleteApiKey) this.btnDeleteApiKey.classList.add('hidden');
+    }
   }
 
   initRenderer() {
@@ -149,8 +173,50 @@ class SafetyCardApp {
       }
     });
 
+    // API Key Modal Events
+    if (this.btnApiKeyModal) {
+      this.btnApiKeyModal.addEventListener('click', () => {
+        this.inputGoogleApiKey.value = window.ttsEngine.getApiKey();
+        this.apiKeyModal.classList.remove('hidden');
+      });
+    }
+
+    if (this.btnCloseApiKey) {
+      this.btnCloseApiKey.addEventListener('click', () => this.apiKeyModal.classList.add('hidden'));
+    }
+    if (this.btnCancelApiKey) {
+      this.btnCancelApiKey.addEventListener('click', () => this.apiKeyModal.classList.add('hidden'));
+    }
+
+    if (this.btnSaveApiKey) {
+      this.btnSaveApiKey.addEventListener('click', () => {
+        const key = this.inputGoogleApiKey.value.trim();
+        window.ttsEngine.setApiKey(key);
+        this.updateApiKeyStatusUI();
+        this.apiKeyModal.classList.add('hidden');
+        if (key) {
+          alert("✨ Google Cloud TTS API 키가 성공적으로 저장되었습니다!\n이제 Neural2 / WaveNet 고음질 성우를 100% 무료로 사용할 수 있습니다.");
+        } else {
+          alert("API 키가 초기화되었습니다.");
+        }
+      });
+    }
+
+    if (this.btnDeleteApiKey) {
+      this.btnDeleteApiKey.addEventListener('click', () => {
+        if (confirm("Google Cloud API 키를 삭제하시겠습니까?")) {
+          window.ttsEngine.setApiKey("");
+          this.inputGoogleApiKey.value = "";
+          this.updateApiKeyStatusUI();
+          this.apiKeyModal.classList.add('hidden');
+          alert("API 키가 삭제되었습니다.");
+        }
+      });
+    }
+
     this.btnTestVoice.addEventListener('click', () => {
-      window.ttsEngine.speak('안전카드뉴스 음성 나레이션을 테스트합니다. 오늘도 안전한 하루 되십시오.', parseFloat(this.speechRateInput.value));
+      const voiceName = this.voiceSelect ? this.voiceSelect.value : 'ko-KR-Neural2-A';
+      window.ttsEngine.speak('안전카드뉴스 Google AI 음성 합성을 테스트합니다. 오늘도 안전한 하루 되십시오.', voiceName, parseFloat(this.speechRateInput.value));
     });
 
     this.aspectRatioSelect.addEventListener('change', () => {
@@ -178,7 +244,8 @@ class SafetyCardApp {
     this.btnPreviewCurrentSpeech.addEventListener('click', () => {
       if (this.cards.length === 0) return;
       const card = this.cards[this.currentPreviewIndex];
-      window.ttsEngine.speak(card.script, parseFloat(this.speechRateInput.value));
+      const voiceName = this.voiceSelect ? this.voiceSelect.value : 'ko-KR-Neural2-A';
+      window.ttsEngine.speak(card.script, voiceName, parseFloat(this.speechRateInput.value));
     });
 
     this.btnStartRender.addEventListener('click', () => this.startRendering());
@@ -526,7 +593,8 @@ class SafetyCardApp {
           src.start();
         } else {
           const rate = parseFloat(this.speechRateInput.value);
-          window.ttsEngine.speak(card.script, rate);
+          const voiceName = this.voiceSelect ? this.voiceSelect.value : 'ko-KR-Neural2-A';
+          window.ttsEngine.speak(card.script, voiceName, rate);
         }
       });
     });
@@ -702,6 +770,7 @@ class SafetyCardApp {
 
     const settings = {
       aspectRatio: this.aspectRatioSelect.value,
+      voiceName: this.voiceSelect ? this.voiceSelect.value : 'ko-KR-Neural2-A',
       speechRate: parseFloat(this.speechRateInput.value),
       cardPause: parseFloat(this.cardPauseInput.value),
       showSubtitles: this.subtitleToggle.checked,

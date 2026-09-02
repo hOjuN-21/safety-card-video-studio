@@ -332,13 +332,14 @@ class VideoRenderer {
       // 2. Fetch/Decode Real AudioBuffers for TTS voice narration
       const ttsAudioBuffers = [];
       const rate = settings.speechRate || 1.0;
+      const voiceName = settings.voiceName || 'ko-KR-Neural2-A';
       for (let i = 0; i < cards.length; i++) {
         if (progressCallback) {
-          progressCallback(10 + Math.round((i / cards.length) * 15), `카드 ${i + 1} 음성 오디오 합성 중...`, cards[i].title);
+          progressCallback(10 + Math.round((i / cards.length) * 15), `카드 ${i + 1} Google AI 음성 합성 중...`, cards[i].title);
         }
         let audioBuf = cards[i].customAudioBuffer;
         if (!audioBuf) {
-          audioBuf = await window.ttsEngine.getTTSAudioBuffer(cards[i].script, rate);
+          audioBuf = await window.ttsEngine.getTTSAudioBuffer(cards[i].script, voiceName, rate);
         }
         ttsAudioBuffers.push(audioBuf);
       }

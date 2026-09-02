@@ -1,6 +1,6 @@
 /**
- * tts-engine.js (V2.4 Guaranteed Audio Embedding Engine)
- * Multi-Gateway Audio Buffer Fetcher + Base64 Decoder + Mic Recording + Web Speech
+ * tts-engine.js (V3.0 Official Google Cloud TTS & Multi-Voice Engine)
+ * Google Cloud Text-to-Speech (Neural2 & WaveNet) + Web Speech Synthesis + Mic Recording
  */
 
 class TTSEngine {
@@ -9,10 +9,12 @@ class TTSEngine {
     this.customBgmBuffer = null;
     this.customBgmName = "";
     this.ttsBufferCache = new Map();
+    this.googleApiKey = localStorage.getItem('google_tts_api_key') || "";
     this.mediaRecorder = null;
     this.recordedAudioChunks = [];
     this.isRecordingMic = false;
     this.cachedVoices = [];
+    this.currentPlayingSource = null;
     this.initVoices();
   }
 
@@ -23,6 +25,24 @@ class TTSEngine {
         this.cachedVoices = window.speechSynthesis.getVoices() || [];
       };
     }
+  }
+
+  setApiKey(key) {
+    this.googleApiKey = (key || "").trim();
+    if (this.googleApiKey) {
+      localStorage.setItem('google_tts_api_key', this.googleApiKey);
+    } else {
+      localStorage.removeItem('google_tts_api_key');
+    }
+    this.ttsBufferCache.clear();
+  }
+
+  getApiKey() {
+    return this.googleApiKey;
+  }
+
+  hasApiKey() {
+    return !!(this.googleApiKey && this.googleApiKey.length > 10);
   }
 
   getAudioContext() {
@@ -48,67 +68,110 @@ class TTSEngine {
     return Math.max(2.0, Math.round((baseSec + pauseSec) * 10) / 10);
   }
 
-  getBestVoice() {
+  getBestVoice(voiceName = 'ko-KR-Neural2-A') {
     const voices = this.cachedVoices.length > 0 ? this.cachedVoices : (window.speechSynthesis ? window.speechSynthesis.getVoices() : []);
     const koVoices = voices.filter(v => v.lang && (v.lang.startsWith('ko') || v.lang.includes('KR') || v.name.includes('Korean') || v.name.includes('한국어')));
 
-    const preferred = koVoices.find(v => 
-      v.name.includes('SunHi') || v.name.includes('Heami') || v.name.includes('Female') || 
-      v.name.includes('여성') || v.name.includes('Yuna') || v.name.includes('Google') || v.name.includes('혜미')
-    );
-    if (preferred) return preferred;
+    const isMale = voiceName && (voiceName.includes('-C') || voiceName.includes('-D') || voiceName.toLowerCase().includes('male'));
+
+    if (isMale) {
+      const maleVoice = koVoices.find(v => 
+        v.name.includes('InJoon') || v.name.includes('Male') || v.name.includes('남성') || 
+        v.name.includes('Hyunsu') || v.name.includes('민호') || v.name.includes('David')
+      );
+      if (maleVoice) return maleVoice;
+    } else {
+      const femaleVoice = koVoices.find(v => 
+        v.name.includes('SunHi') || v.name.includes('Heami') || v.name.includes('Female') || 
+        v.name.includes('여성') || v.name.includes('Yuna') || v.name.includes('Google') || v.name.includes('혜미')
+      );
+      if (femaleVoice) return femaleVoice;
+    }
 
     return koVoices[0] || voices[0] || null;
   }
 
-  speak(text, rate = 1.0, onEnd = null) {
-    if (!window.speechSynthesis) {
+  /**
+   * Preview speech audio in browser (using Google Cloud Neural2 buffer or native speech)
+   */
+  async speak(text, voiceName = 'ko-KR-Neural2-A', rate = 1.0, onEnd = null) {
+    this.stop();
+    const cleanText = (text || '').trim();
+    if (!cleanText) {
       if (onEnd) onEnd();
       return;
     }
 
-    try {
-      window.speechSynthesis.cancel();
-      if (!text || text.trim() === '') {
-        if (onEnd) onEnd();
-        return;
+    // 1. If Google API key is available, fetch and play the authentic Google Neural2 voice buffer
+    if (this.hasApiKey()) {
+      try {
+        const audioBuf = await this.getTTSAudioBuffer(cleanText, voiceName, rate);
+        if (audioBuf) {
+          const ctx = this.getAudioContext();
+          const src = ctx.createBufferSource();
+          src.buffer = audioBuf;
+          src.connect(ctx.destination);
+          this.currentPlayingSource = src;
+          src.onended = () => {
+            this.currentPlayingSource = null;
+            if (onEnd) onEnd();
+          };
+          src.start();
+          return;
+        }
+      } catch (err) {
+        console.warn("Google TTS preview fallback:", err);
       }
+    }
 
-      const utterance = new SpeechSynthesisUtterance(text.trim());
-      utterance.lang = 'ko-KR';
+    // 2. Native Web Speech fallback
+    if (window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.lang = 'ko-KR';
 
-      const voice = this.getBestVoice();
-      if (voice) utterance.voice = voice;
+        const voice = this.getBestVoice(voiceName);
+        if (voice) utterance.voice = voice;
 
-      utterance.pitch = 1.05;
-      utterance.rate = rate;
+        const isMale = voiceName && (voiceName.includes('-C') || voiceName.includes('-D'));
+        if (isMale) {
+          const isNativeMale = voice && (voice.name.includes('InJoon') || voice.name.includes('Male') || voice.name.includes('남성'));
+          utterance.pitch = isNativeMale ? 0.95 : 0.72;
+          utterance.rate = Math.max(0.7, rate * 0.92);
+        } else {
+          utterance.pitch = 1.05;
+          utterance.rate = rate;
+        }
 
-      utterance.onend = () => { if (onEnd) onEnd(); };
-      utterance.onerror = (e) => {
-        console.warn("SpeechSynthesis error:", e);
+        utterance.onend = () => { if (onEnd) onEnd(); };
+        utterance.onerror = () => { if (onEnd) onEnd(); };
+        window.speechSynthesis.speak(utterance);
+      } catch (e) {
         if (onEnd) onEnd();
-      };
-
-      window.speechSynthesis.speak(utterance);
-    } catch (err) {
-      console.warn("Speech preview error:", err);
+      }
+    } else {
       if (onEnd) onEnd();
     }
   }
 
   stop() {
+    if (this.currentPlayingSource) {
+      try { this.currentPlayingSource.stop(); } catch (e) {}
+      this.currentPlayingSource = null;
+    }
     if (window.speechSynthesis) {
       try { window.speechSynthesis.cancel(); } catch (e) {}
     }
   }
 
   /**
-   * Fetch and decode real speech AudioBuffer with multi-strategy fallbacks
+   * Fetch and decode real speech AudioBuffer (Google Cloud TTS Official API + Fallback)
    */
-  async getTTSAudioBuffer(text, rate = 1.0) {
+  async getTTSAudioBuffer(text, voiceName = 'ko-KR-Neural2-A', rate = 1.0) {
     if (!text || text.trim() === '') return null;
     const cleanText = text.trim();
-    const cacheKey = `${cleanText}_${rate}`;
+    const cacheKey = `${voiceName}_${cleanText}_${rate}`;
 
     if (this.ttsBufferCache.has(cacheKey)) {
       return this.ttsBufferCache.get(cacheKey);
@@ -117,80 +180,67 @@ class TTSEngine {
     const ctx = this.getAudioContext();
     let rawBuffer = null;
 
-    const encoded = encodeURIComponent(cleanText);
-    const gtxUrl = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=ko&q=${encoded}`;
-    const twUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ko&q=${encoded}`;
-
-    // Strategy 1: AllOrigins raw & JSON mode
-    try {
-      const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(gtxUrl)}`, { signal: AbortSignal.timeout(3500) });
-      if (res.ok) {
-        const ab = await res.arrayBuffer();
-        if (ab && ab.byteLength > 200) {
-          rawBuffer = await ctx.decodeAudioData(ab);
-        }
-      }
-    } catch (e) {}
-
-    // Strategy 2: AllOrigins JSON Base64 mode
-    if (!rawBuffer) {
+    // 1. Official Google Cloud Text-to-Speech API
+    if (this.hasApiKey()) {
       try {
-        const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(gtxUrl)}`, { signal: AbortSignal.timeout(3500) });
+        const res = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${this.googleApiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input: { text: cleanText },
+            voice: {
+              languageCode: 'ko-KR',
+              name: voiceName || 'ko-KR-Neural2-A'
+            },
+            audioConfig: {
+              audioEncoding: 'MP3',
+              speakingRate: rate
+            }
+          })
+        });
+
         if (res.ok) {
           const json = await res.json();
-          if (json.contents && json.contents.startsWith('data:')) {
-            const dataRes = await fetch(json.contents);
-            const ab = await dataRes.arrayBuffer();
+          if (json.audioContent) {
+            const binary = atob(json.audioContent);
+            const len = binary.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+            rawBuffer = await ctx.decodeAudioData(bytes.buffer);
+          }
+        }
+      } catch (err) {
+        console.warn("Google Cloud API fetch error:", err);
+      }
+    }
+
+    // 2. Open Google Speech Gateway Fallbacks
+    if (!rawBuffer) {
+      const encoded = encodeURIComponent(cleanText);
+      const gtxUrl = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=ko&q=${encoded}`;
+      const proxyList = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(gtxUrl)}`,
+        `https://corsproxy.io/?url=${encodeURIComponent(gtxUrl)}`,
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(gtxUrl)}`
+      ];
+
+      for (const pUrl of proxyList) {
+        try {
+          const res = await fetch(pUrl, { signal: AbortSignal.timeout(3500) });
+          if (res.ok) {
+            const ab = await res.arrayBuffer();
             if (ab && ab.byteLength > 200) {
               rawBuffer = await ctx.decodeAudioData(ab);
+              break;
             }
           }
-        }
-      } catch (e) {}
+        } catch (e) {}
+      }
     }
 
-    // Strategy 3: CorsProxy.io
+    // 3. Fallback: create clear melodic chime buffer if offline
     if (!rawBuffer) {
-      try {
-        const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(gtxUrl)}`, { signal: AbortSignal.timeout(3500) });
-        if (res.ok) {
-          const ab = await res.arrayBuffer();
-          if (ab && ab.byteLength > 200) {
-            rawBuffer = await ctx.decodeAudioData(ab);
-          }
-        }
-      } catch (e) {}
-    }
-
-    // Strategy 4: Codetabs proxy
-    if (!rawBuffer) {
-      try {
-        const res = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(twUrl)}`, { signal: AbortSignal.timeout(3500) });
-        if (res.ok) {
-          const ab = await res.arrayBuffer();
-          if (ab && ab.byteLength > 200) {
-            rawBuffer = await ctx.decodeAudioData(ab);
-          }
-        }
-      } catch (e) {}
-    }
-
-    // Strategy 5: Direct Google TTS
-    if (!rawBuffer) {
-      try {
-        const res = await fetch(gtxUrl, { signal: AbortSignal.timeout(3000) });
-        if (res.ok) {
-          const ab = await res.arrayBuffer();
-          if (ab && ab.byteLength > 200) {
-            rawBuffer = await ctx.decodeAudioData(ab);
-          }
-        }
-      } catch (e) {}
-    }
-
-    // Fallback: If network proxies are offline, create clear melodic safety chime carrier
-    if (!rawBuffer) {
-      console.warn("Using melodic carrier buffer for:", cleanText.slice(0, 15));
+      console.warn("Using carrier notification buffer for:", cleanText.slice(0, 15));
       rawBuffer = this.createNotificationChimeBuffer(cleanText, rate);
     }
 
@@ -209,7 +259,7 @@ class TTSEngine {
     const chimeSamples = Math.floor(sr * chimeDur);
     for (let i = 0; i < chimeSamples && i < data.length; i++) {
       const t = i / sr;
-      const freq = 659.25; // E5 tone
+      const freq = 659.25;
       const env = Math.exp(-t * 8);
       data[i] = Math.sin(2 * Math.PI * freq * t) * env * 0.15;
     }
@@ -251,9 +301,6 @@ class TTSEngine {
     });
   }
 
-  /**
-   * Load custom audio file for a card or BGM
-   */
   async decodeAudioFile(file) {
     if (!file) return null;
     const ctx = this.getAudioContext();
