@@ -1,6 +1,6 @@
 /**
- * tts-engine.js (V3.0 Official Google Cloud TTS & Multi-Voice Engine)
- * Google Cloud Text-to-Speech (Neural2 & WaveNet) + Web Speech Synthesis + Mic Recording
+ * tts-engine.js (V3.1 Official Google Cloud TTS & Neural2 Male/Female Engine)
+ * Robust multi-voice processing with API key test verification & pitch transform fallback
  */
 
 class TTSEngine {
@@ -20,10 +20,11 @@ class TTSEngine {
 
   initVoices() {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
-      this.cachedVoices = window.speechSynthesis.getVoices() || [];
-      window.speechSynthesis.onvoiceschanged = () => {
+      const update = () => {
         this.cachedVoices = window.speechSynthesis.getVoices() || [];
       };
+      update();
+      window.speechSynthesis.onvoiceschanged = update;
     }
   }
 
@@ -68,6 +69,51 @@ class TTSEngine {
     return Math.max(2.0, Math.round((baseSec + pauseSec) * 10) / 10);
   }
 
+  /**
+   * Test Google Cloud API key directly and return clear diagnostic status
+   */
+  async verifyApiKey(apiKey) {
+    const key = (apiKey || "").trim();
+    if (!key) {
+      return { success: false, message: "API 키를 입력해주세요." };
+    }
+
+    try {
+      const res = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input: { text: "구글 클라우드 음성 합성 연결 테스트입니다." },
+          voice: { languageCode: 'ko-KR', name: 'ko-KR-Neural2-A' },
+          audioConfig: { audioEncoding: 'MP3' }
+        })
+      });
+
+      const json = await res.json();
+      if (res.ok && json.audioContent) {
+        return { success: true, message: "Google Cloud TTS 연결 성공! Neural2 고음질 성우가 정상 활성화되었습니다." };
+      } else {
+        const errMsg = json.error?.message || "알 수 없는 오류가 발생했습니다.";
+        if (errMsg.includes("disabled") || errMsg.includes("not been used")) {
+          return {
+            success: false,
+            message: "⚠️ Google Cloud 콘솔에서 'Cloud Text-to-Speech API' 사용(Enable) 설정이 필요합니다.",
+            detail: errMsg
+          };
+        } else if (errMsg.includes("API key not valid") || errMsg.includes("INVALID_ARGUMENT")) {
+          return {
+            success: false,
+            message: "⚠️ 입력하신 API 키가 올바르지 않거나 권한이 없습니다.",
+            detail: errMsg
+          };
+        }
+        return { success: false, message: `⚠️ 오류: ${errMsg}`, detail: errMsg };
+      }
+    } catch (e) {
+      return { success: false, message: `네트워크 연결 오류: ${e.message}` };
+    }
+  }
+
   getBestVoice(voiceName = 'ko-KR-Neural2-A') {
     const voices = this.cachedVoices.length > 0 ? this.cachedVoices : (window.speechSynthesis ? window.speechSynthesis.getVoices() : []);
     const koVoices = voices.filter(v => v.lang && (v.lang.startsWith('ko') || v.lang.includes('KR') || v.name.includes('Korean') || v.name.includes('한국어')));
@@ -92,7 +138,7 @@ class TTSEngine {
   }
 
   /**
-   * Preview speech audio in browser (using Google Cloud Neural2 buffer or native speech)
+   * Preview speech audio in browser (Google Cloud Neural2 buffer or native speech)
    */
   async speak(text, voiceName = 'ko-KR-Neural2-A', rate = 1.0, onEnd = null) {
     this.stop();
@@ -102,26 +148,24 @@ class TTSEngine {
       return;
     }
 
-    // 1. If Google API key is available, fetch and play the authentic Google Neural2 voice buffer
-    if (this.hasApiKey()) {
-      try {
-        const audioBuf = await this.getTTSAudioBuffer(cleanText, voiceName, rate);
-        if (audioBuf) {
-          const ctx = this.getAudioContext();
-          const src = ctx.createBufferSource();
-          src.buffer = audioBuf;
-          src.connect(ctx.destination);
-          this.currentPlayingSource = src;
-          src.onended = () => {
-            this.currentPlayingSource = null;
-            if (onEnd) onEnd();
-          };
-          src.start();
-          return;
-        }
-      } catch (err) {
-        console.warn("Google TTS preview fallback:", err);
+    // 1. Fetch & play authentic AudioBuffer (Google Neural2 or pitch-transformed distinct voice)
+    try {
+      const audioBuf = await this.getTTSAudioBuffer(cleanText, voiceName, rate);
+      if (audioBuf) {
+        const ctx = this.getAudioContext();
+        const src = ctx.createBufferSource();
+        src.buffer = audioBuf;
+        src.connect(ctx.destination);
+        this.currentPlayingSource = src;
+        src.onended = () => {
+          this.currentPlayingSource = null;
+          if (onEnd) onEnd();
+        };
+        src.start();
+        return;
       }
+    } catch (err) {
+      console.warn("TTS preview audio buffer fallback:", err);
     }
 
     // 2. Native Web Speech fallback
@@ -137,7 +181,7 @@ class TTSEngine {
         const isMale = voiceName && (voiceName.includes('-C') || voiceName.includes('-D'));
         if (isMale) {
           const isNativeMale = voice && (voice.name.includes('InJoon') || voice.name.includes('Male') || voice.name.includes('남성'));
-          utterance.pitch = isNativeMale ? 0.95 : 0.72;
+          utterance.pitch = isNativeMale ? 0.95 : 0.65;
           utterance.rate = Math.max(0.7, rate * 0.92);
         } else {
           utterance.pitch = 1.05;
@@ -179,6 +223,7 @@ class TTSEngine {
 
     const ctx = this.getAudioContext();
     let rawBuffer = null;
+    let isCloudNeuralSuccess = false;
 
     // 1. Official Google Cloud Text-to-Speech API
     if (this.hasApiKey()) {
@@ -207,14 +252,18 @@ class TTSEngine {
             const bytes = new Uint8Array(len);
             for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
             rawBuffer = await ctx.decodeAudioData(bytes.buffer);
+            isCloudNeuralSuccess = true;
           }
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          console.warn("Google Cloud API returned status:", res.status, errData);
         }
       } catch (err) {
         console.warn("Google Cloud API fetch error:", err);
       }
     }
 
-    // 2. Open Google Speech Gateway Fallbacks
+    // 2. Open Google Speech Gateway Fallback (if Google Cloud API is not active)
     if (!rawBuffer) {
       const encoded = encodeURIComponent(cleanText);
       const gtxUrl = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=ko&q=${encoded}`;
@@ -238,14 +287,56 @@ class TTSEngine {
       }
     }
 
-    // 3. Fallback: create clear melodic chime buffer if offline
+    // 3. Fallback chime if offline
     if (!rawBuffer) {
       console.warn("Using carrier notification buffer for:", cleanText.slice(0, 15));
       rawBuffer = this.createNotificationChimeBuffer(cleanText, rate);
     }
 
-    this.ttsBufferCache.set(cacheKey, rawBuffer);
-    return rawBuffer;
+    // If it's a fallback audio (not direct Google Cloud Neural2) and a Male voice is requested,
+    // apply distinct acoustic pitch shift to produce an unmistakably masculine voice!
+    let finalBuffer = rawBuffer;
+    if (!isCloudNeuralSuccess && rawBuffer) {
+      const isMale = voiceName && (voiceName.includes('-C') || voiceName.includes('-D') || voiceName.toLowerCase().includes('male'));
+      if (isMale) {
+        finalBuffer = this.applyMaleVoiceFilter(rawBuffer);
+      }
+    }
+
+    this.ttsBufferCache.set(cacheKey, finalBuffer);
+    return finalBuffer;
+  }
+
+  applyMaleVoiceFilter(buffer) {
+    const ctx = this.getAudioContext();
+    const sr = buffer.sampleRate;
+    const inData = buffer.getChannelData(0);
+    const pitchScale = 0.80; // Masculine tone pitch scaling
+
+    const outLen = Math.floor(buffer.length / pitchScale);
+    const outBuffer = ctx.createBuffer(1, Math.max(1, outLen), sr);
+    const outData = outBuffer.getChannelData(0);
+
+    for (let i = 0; i < outLen; i++) {
+      const srcPos = i * pitchScale;
+      const idx = Math.floor(srcPos);
+      const frac = srcPos - idx;
+
+      if (idx + 1 < inData.length) {
+        let val = inData[idx] * (1 - frac) + inData[idx + 1] * frac;
+
+        // Smooth fade-in & fade-out to prevent clicks
+        if (i < 300) {
+          val *= (i / 300);
+        } else if (i > outLen - 600) {
+          val *= Math.max(0, (outLen - i) / 600);
+        }
+
+        outData[i] = val;
+      }
+    }
+
+    return outBuffer;
   }
 
   createNotificationChimeBuffer(text, rate = 1.0) {

@@ -38,6 +38,8 @@ class SafetyCardApp {
     this.btnCancelApiKey = document.getElementById('btn-cancel-api-key');
     this.btnSaveApiKey = document.getElementById('btn-save-api-key');
     this.btnDeleteApiKey = document.getElementById('btn-delete-api-key');
+    this.btnVerifyApiKey = document.getElementById('btn-verify-api-key');
+    this.apiKeyTestFeedback = document.getElementById('api-key-test-feedback');
 
     this.speechRateInput = document.getElementById('speech-rate');
     this.rateVal = document.getElementById('rate-val');
@@ -188,14 +190,42 @@ class SafetyCardApp {
       this.btnCancelApiKey.addEventListener('click', () => this.apiKeyModal.classList.add('hidden'));
     }
 
+    if (this.btnVerifyApiKey) {
+      this.btnVerifyApiKey.addEventListener('click', async () => {
+        const key = this.inputGoogleApiKey.value.trim();
+        if (!key) {
+          this.apiKeyTestFeedback.className = "text-xs p-2.5 rounded-lg bg-rose-950/80 border border-rose-800 text-rose-300 block";
+          this.apiKeyTestFeedback.textContent = "API 키를 먼저 입력해주세요.";
+          return;
+        }
+
+        this.btnVerifyApiKey.disabled = true;
+        this.btnVerifyApiKey.textContent = "검증 중...";
+        this.apiKeyTestFeedback.className = "text-xs p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-amber-300 block animate-pulse";
+        this.apiKeyTestFeedback.textContent = "Google Cloud API 연결 및 Neural2 음성 확인 중...";
+
+        const result = await window.ttsEngine.verifyApiKey(key);
+        this.btnVerifyApiKey.disabled = false;
+        this.btnVerifyApiKey.textContent = "연결 테스트";
+
+        if (result.success) {
+          this.apiKeyTestFeedback.className = "text-xs p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-700 text-emerald-300 block";
+          this.apiKeyTestFeedback.textContent = "✅ " + result.message;
+        } else {
+          this.apiKeyTestFeedback.className = "text-xs p-2.5 rounded-lg bg-rose-950/90 border border-rose-700 text-rose-200 block";
+          this.apiKeyTestFeedback.innerHTML = `<div>${result.message}</div>${result.detail ? `<div class="text-[10px] text-slate-400 mt-1 font-mono">${result.detail}</div>` : ''}`;
+        }
+      });
+    }
+
     if (this.btnSaveApiKey) {
-      this.btnSaveApiKey.addEventListener('click', () => {
+      this.btnSaveApiKey.addEventListener('click', async () => {
         const key = this.inputGoogleApiKey.value.trim();
         window.ttsEngine.setApiKey(key);
         this.updateApiKeyStatusUI();
         this.apiKeyModal.classList.add('hidden');
         if (key) {
-          alert("✨ Google Cloud TTS API 키가 성공적으로 저장되었습니다!\n이제 Neural2 / WaveNet 고음질 성우를 100% 무료로 사용할 수 있습니다.");
+          alert("✨ Google Cloud TTS API 키가 저장되었습니다.\n성우를 변경하며 [테스트] 버튼을 눌러보세요!");
         } else {
           alert("API 키가 초기화되었습니다.");
         }

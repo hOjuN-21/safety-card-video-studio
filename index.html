@@ -447,16 +447,26 @@
         
         <div class="space-y-1.5 pt-1">
           <label class="block font-semibold text-slate-200">Google Cloud API Key</label>
-          <input type="password" id="input-google-api-key" placeholder="AIzaSy..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-amber-500">
+          <div class="flex gap-2">
+            <input type="password" id="input-google-api-key" placeholder="AIzaSy..." class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-amber-500">
+            <button id="btn-verify-api-key" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-semibold rounded-lg text-xs border border-slate-700 whitespace-nowrap">
+              연결 테스트
+            </button>
+          </div>
+          <div id="api-key-test-feedback" class="text-xs p-2.5 rounded-lg hidden"></div>
           <p class="text-[11px] text-slate-500">API 키는 사용자 브라우저 로컬 저장소에만 안전하게 보관됩니다.</p>
         </div>
 
-        <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 space-y-1 text-[11px] text-slate-400">
+        <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 space-y-1.5 text-[11px] text-slate-400">
           <span class="font-semibold text-amber-400 flex items-center gap-1">
             <i data-lucide="info" class="w-3.5 h-3.5"></i>
-            API 키가 없으신가요?
+            필수 확인: Text-to-Speech API 활성화
           </span>
-          <p>키를 입력하지 않아도 기본 내장 보이스로 자동 합성되며, <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-indigo-400 underline font-medium">Google Cloud 콘솔</a>에서 무료 키를 발급받을 수 있습니다.</p>
+          <p class="leading-relaxed">구글 클라우드 콘솔에서 <strong>'Cloud Text-to-Speech API'</strong>가 [사용(Enable)] 상태여야 고음질 남녀 성우가 정상 작동합니다.</p>
+          <a href="https://console.cloud.google.com/apis/library/texttospeech.googleapis.com" target="_blank" class="inline-flex items-center gap-1 text-indigo-400 hover:underline font-medium pt-0.5">
+            <span>👉 Google Cloud TTS API 활성화 페이지 바로가기</span>
+            <i data-lucide="external-link" class="w-3 h-3"></i>
+          </a>
         </div>
       </div>
 
@@ -477,10 +487,10 @@
   </div>
 
   <!-- SCRIPTS -->
-  <script src="js/sample-data.js?v=3.0.0"></script>
-  <script src="js/tts-engine.js?v=3.0.0"></script>
-  <script src="js/video-renderer.js?v=3.0.0"></script>
-  <script src="js/app.js?v=3.0.0"></script>
+  <script src="js/sample-data.js?v=3.1.0"></script>
+  <script src="js/tts-engine.js?v=3.1.0"></script>
+  <script src="js/video-renderer.js?v=3.1.0"></script>
+  <script src="js/app.js?v=3.1.0"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
