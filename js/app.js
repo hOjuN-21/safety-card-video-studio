@@ -61,7 +61,7 @@ class SafetyCardApp {
     this.bgmVolVal = document.getElementById('bgm-vol-val');
     this.customBgmFileInput = document.getElementById('custom-bgm-file');
     this.bgmUploadLabel = document.getElementById('bgm-upload-label');
-    this.videoLayoutDefault = document.getElementById('video-layout-default');
+
 
     this.previewCanvas = document.getElementById('preview-canvas');
     this.resultVideo = document.getElementById('result-video');
@@ -371,7 +371,7 @@ class SafetyCardApp {
           script: `${fileName} 현장 작업 시연 영상입니다. 작업 안전수칙을 준수하십시오.`,
           mediaUrl: videoUrl,
           imageUrl: thumbUrl,
-          videoLayout: this.videoLayoutDefault.value || 'full',
+          videoLayout: document.querySelector('input[name="video-layout-default"]:checked')?.value || 'full',
           videoAudioMode: 'mute',
           syncMode: 'tts_length',
           originalFileName: file.name
